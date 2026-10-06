@@ -1,0 +1,20 @@
+# Secrets — never commit
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Generated at runtime
+.cache/
+state/*
+!state/.gitkeep
+results/*
+!results/.gitkeep
+
+# OS / editor
+.DS_Store
+.vscode/
+.venv/

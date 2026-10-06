@@ -1,0 +1,99 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Ami — Login</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --line:#2a2f3a; --txt:#e6e8ee;
+          --dim:#9aa3b2; --accent:#ff9900; --ok:#4ade80; --err:#f87171; }
+  * { box-sizing: border-box; }
+  body { margin:0; height:100vh; display:flex; align-items:center; justify-content:center;
+         background:var(--bg); color:var(--txt); font:14px/1.55 system-ui, -apple-system, sans-serif; }
+  .login-box { width:100%; max-width:400px; background:var(--panel); border:1px solid var(--line);
+               border-radius:12px; padding:40px 30px; }
+  .login-box h1 { margin:0 0 30px; text-align:center; font-size:28px; color:var(--accent); }
+  .login-box p { margin:0 0 20px; text-align:center; color:var(--dim); font-size:14px; }
+  .form-group { margin-bottom:20px; }
+  .form-group label { display:block; margin-bottom:8px; font-size:12px; letter-spacing:.08em;
+                      text-transform:uppercase; color:var(--dim); }
+  .form-group input { width:100%; background:#12151c; color:var(--txt); border:1px solid var(--line);
+                      border-radius:6px; padding:12px 14px; font:inherit; }
+  .form-group input:focus { outline:none; border-color:var(--accent); }
+  .login-button { width:100%; background:#ff9900; color:#000; border:none; border-radius:6px;
+                  padding:12px; font-weight:600; cursor:pointer; font-size:14px; }
+  .login-button:hover { background:#ffb733; }
+  .login-button:disabled { background:var(--dim); cursor:not-allowed; }
+  .error { color:var(--err); font-size:12px; margin-top:8px; display:none; }
+  .error.show { display:block; }
+  .info { color:var(--dim); font-size:11px; margin-top:20px; text-align:center; }
+</style>
+
+<div class="login-box">
+  <h1>Ami</h1>
+  <p>Amazon Customer Support Agent</p>
+
+  <form onsubmit="handleLogin(event)">
+    <div class="form-group">
+      <label for="email">Email Address</label>
+      <input type="email" id="email" placeholder="your@email.com" required autofocus>
+    </div>
+
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="Enter your password" required>
+    </div>
+
+    <button type="submit" class="login-button" id="loginBtn">Sign In</button>
+
+    <div class="error" id="error"></div>
+  </form>
+</div>
+
+<script>
+async function handleLogin(event) {
+  event.preventDefault();
+
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const errorDiv = document.getElementById('error');
+  const loginBtn = document.getElementById('loginBtn');
+
+  if (!email || !password) {
+    errorDiv.textContent = 'Please enter email and password';
+    errorDiv.classList.add('show');
+    return;
+  }
+
+  errorDiv.classList.remove('show');
+  loginBtn.disabled = true;
+  loginBtn.textContent = 'Signing in…';
+
+  try {
+    // Call the login endpoint
+    const response = await fetch('/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email, password: password })
+    });
+
+    if (!response.ok) {
+      throw new Error('Login failed');
+    }
+
+    const data = await response.json();
+
+    if (data.ok) {
+      // Token is now set as HTTP-only cookie by server
+      // No need to store in localStorage — browser handles it automatically
+      window.location.href = '/';
+    } else {
+      throw new Error(data.error || 'Login failed');
+    }
+  } catch (err) {
+    errorDiv.textContent = `Error: ${err.message}`;
+    errorDiv.classList.add('show');
+    loginBtn.disabled = false;
+    loginBtn.textContent = 'Sign In';
+  }
+}
+
+// No auto-redirect — Stage 3 uses cookies, not localStorage tokens
+</script>
