@@ -137,6 +137,49 @@ def _percentile(values, p):
     return ordered[i]
 
 
+# Which alerts are currently firing, so we log on the transition into breach
+# (and back out), not once per check — otherwise a sustained problem would
+# bury the trace in identical alert lines.
+_firing = set()
+_firing_lock = threading.Lock()
+
+
+def check_alerts(stats_now=None):
+    """Compare live stats against the configured thresholds; log an `alert`
+    event when one is first crossed, and a recovery when it clears.
+
+    Thresholds live in config (ALERT_* ); 0 disables a given check. Returns
+    the list of alert names currently breached. This is the S2 regression
+    monitor: a metric that gets worse trips a visible, distinct event.
+    """
+    from ami.config import config          # local import avoids a cycle
+    s = stats_now or stats()
+
+    checks = [
+        ("error_rate", config.ALERT_ERROR_RATE_PCT, s["error_rate"], "%"),
+        ("cost_per_turn", config.ALERT_COST_PER_TURN_USD, s["cost_per_turn"], "$"),
+        ("turn_p95_ms", config.ALERT_P95_MS, s["turn_p95_ms"], "ms"),
+    ]
+
+    breached = []
+    with _firing_lock:
+        for name, threshold, value, unit in checks:
+            if not threshold:                       # 0 disables this alert
+                _firing.discard(name)
+                continue
+            if value > threshold:
+                breached.append(name)
+                if name not in _firing:             # transition into breach
+                    _firing.add(name)
+                    log("alert", metric=name, value=value,
+                        threshold=threshold, unit=unit, state="firing")
+            elif name in _firing:                   # transition back to OK
+                _firing.discard(name)
+                log("alert", metric=name, value=value,
+                    threshold=threshold, unit=unit, state="recovered")
+    return breached
+
+
 def stats():
     """The numbers worth putting on a dashboard."""
     with _lock:

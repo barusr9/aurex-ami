@@ -338,7 +338,9 @@ class Handler(BaseHTTPRequestHandler):
 
             user_id, _ = self._authenticate()
             if path == "/logs.json":
-                self._send(json.dumps({"stats": observe.stats(), "events": observe.recent(120)}))
+                self._send(json.dumps({"stats": observe.stats(),
+                                       "events": observe.recent(120),
+                                       "alerts": observe.recent(20, kind="alert")}))
             elif path == "/trace.jsonl":
                 try:
                     self._send(observe.LOGFILE.read_text(), "text/plain")
@@ -529,6 +531,9 @@ class Handler(BaseHTTPRequestHandler):
                 observe.log("turn", user=text, steps=len(steps), ms=t.ms,
                             actions=len(work.actions) - before,
                             cost=observe.turn_cost(turn_id))
+                # S2: after each turn, check the live metrics against the
+                # configured thresholds and raise an alert event on a breach.
+                observe.check_alerts()
                 save_sessions()
 
                 log_action(user_id, "chat", status="success", http_status=200,
