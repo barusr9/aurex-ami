@@ -17,6 +17,7 @@ results/*
 # and the S3 complaint-case "after" results)
 !results/baseline_*.json
 !results/complaints.json
+!results/s6_routing_simulation.json
 
 # OS / editor
 .DS_Store

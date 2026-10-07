@@ -32,18 +32,21 @@ agent worked, but nothing proved it *stayed* working or what it cost.
 
 | | before | after | change |
 |--------------------|---------|---------|--------|
-| cost per run (¢)   | 0.89¢   | ~0.89¢  | ~0 (see §4/§5) |
+| cost per run (¢)   | 0.89¢   | 0.89¢ live · **0.67¢ projected** | 0 live; **−25% with routing** (see §4) |
 | p50 latency (ms)   | 5,912   | ~5,900  | ~0 |
 | p95 latency (ms)   | (polluted by a 502) | n/a | infra, excluded |
 | golden-set score   | 15/20 (75%) | 15–16/20 | flat; failures are model non-determinism |
 | users at SLO break | n/a (single-tenant demo) | n/a | — |
 | failure screenshot | `/logs` 401 dead-end | login→dashboard | see §4 |
 
-> The honest headline: **no metric got materially worse, and none got the
-> dramatic win the plan hoped for** — because the two biggest levers were
-> blocked by the environment (see §5). What *did* improve is unmeasurable in
-> a number but real: the system is now resilient, observable, honest under
-> pressure, and self-testing. The complaint suite went 0→10/10.
+> The honest headline: **no LIVE metric got materially worse, and the live
+> numbers didn't get the dramatic win the plan hoped for** — because the two
+> biggest cost levers are blocked by the single-model proxy (see §5). But the
+> routing *logic* is built and its saving is now quantified: **−25% blended
+> cost** on the frozen suite when a cheap tier is available (§4), realizable
+> the day we point it at a real multi-model endpoint. What also improved,
+> unmeasurable in these four numbers but real: the system is now resilient,
+> observable, honest under pressure, and self-testing. Complaint suite 0→10/10.
 
 ## 4. What moved, by kind of case
 
@@ -55,15 +58,34 @@ agent worked, but nothing proved it *stayed* working or what it cost.
 | Dashboard reachability | 401 dead-end | login → `/logs` | fixed redirect + login flow |
 | Dependency failures | crash / raw stack trace | graceful message | model/retrieval/tool/timeout all handled |
 
+**S6 routing — cost saving, quantified (`results/s6_routing_simulation.json`).**
+The proxy serves one model, so we can't switch models live — but the saving
+is computable from real per-model prices × the committed baseline tokens:
+
+| | cost (20-case suite) | note |
+|---|---|---|
+| now (all `gpt-5.6-terra`) | $0.1774 | one premium model for everything |
+| routed (cheap→`gpt-5.6-luna`, 10× cheaper) | $0.1334 | **−25%** |
+| routed (cheap→`gpt-4o-mini`) | $0.1322 | **−25%** |
+
+7/20 cases route cheap (policy, RAG, simple lookups); 13 stay strong (account
+actions, guardrails, confirmations — correctly kept on the capable model).
+Each cheap-routed case drops ~90%; the blend is 25% because the expensive
+guardrail cases rightly keep the strong model. On real support traffic
+(mostly simple questions, not guardrail stress-tests) the saving would be
+larger. Live wiring is a config change the day a multi-model endpoint exists.
+
 ## 5. What did NOT work (not optional)
 
-Two planned cost wins could not be demonstrated **because the class proxy
-constrains the environment, not because the code is wrong:**
+Two planned cost wins could not be demonstrated **live because the class
+proxy constrains the environment, not because the code is wrong:**
 
-1. **Model routing (S6) cut no cost.** The proxy ignores the requested model
-   — `luna`, `sol`, `4o-mini`, `terra` all return `gpt-5.6-terra`. The
-   routing logic is built, tested (7 tests), and correct, but with one model
-   available there is no cheaper tier to route to. Shipped **off by default**.
+1. **Model routing (S6) cut no cost *live*.** The proxy ignores the requested
+   model — `luna`, `sol`, `4o-mini`, `terra` all return `gpt-5.6-terra`. The
+   routing logic is built, tested (7 tests), and its saving is quantified
+   (§4: −25% on the frozen suite), but with one model actually served there
+   is nothing to switch to *here*. Shipped **off by default**; wiring the
+   actuals is a config change once a multi-model endpoint exists.
 
 2. **Prompt caching needed no code and can't be forced.** Caching is
    automatic on the proxy (measured: a cache HIT is ~$0.0008/turn vs
