@@ -21,8 +21,9 @@ import json
 
 from ami import tools
 from ami.llm import MODEL, complete
+from ami.config import config
 
-MAX_STEPS = 6
+MAX_STEPS = config.MAX_STEPS
 
 PLANNING_RULES = """
 HOW YOU PLAN

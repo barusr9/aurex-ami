@@ -12,10 +12,13 @@ from openai import OpenAI, RateLimitError, APIStatusError
 
 from ami import observe
 from ami import pricing
+from ami.config import config
 
 load_dotenv()
 
-MODEL = os.getenv("MODEL", "gpt-4o-mini")
+# Model and retry budget come from config (one source of truth); the env
+# vars they read still work exactly as before.
+MODEL = config.MODEL
 
 _client = OpenAI(
     api_key=os.environ["OPENAI_API_KEY"],
@@ -23,7 +26,7 @@ _client = OpenAI(
 )
 
 
-RATE_LIMIT_TRIES = 6
+RATE_LIMIT_TRIES = config.LLM_RETRY_TRIES
 
 # A gateway hiccup (502/503/504) is the proxy or its origin being briefly
 # unreachable, not our request being wrong. Like a 429 it clears on its own,
