@@ -89,8 +89,10 @@ class TestTurnBudget:
         from types import SimpleNamespace
         monkeypatch.setattr(planner, "TURN_BUDGET_SECONDS", 0.05)
 
+        # One call alone blows the budget, so the check at the top of step 2
+        # always trips regardless of machine load — no fragile timing margin.
         def slow_complete(messages, **kwargs):
-            time.sleep(0.04)                       # two of these exceed 0.05s
+            time.sleep(0.12)                       # > budget after a single call
             msg = Reply(tool_calls=[tool_call("get_order", order_id=DELIVERED,
                                               thought="looking")])
             return SimpleNamespace(choices=[SimpleNamespace(message=msg)])

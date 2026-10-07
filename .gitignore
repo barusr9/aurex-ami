@@ -13,8 +13,10 @@ state/*
 !state/.gitkeep
 results/*
 !results/.gitkeep
-# ...but keep the committed readout baselines (the "before" numbers)
+# ...but keep the committed readout artifacts (baseline "before" numbers,
+# and the S3 complaint-case "after" results)
 !results/baseline_*.json
+!results/complaints.json
 
 # OS / editor
 .DS_Store
