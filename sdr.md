@@ -4,6 +4,18 @@ The engineering spec for the six business requirements in `brd.md`. Each
 section (S1–S6) is the "how" for the matching BRD item (the "what/why"),
 grounded in a baseline taken 2026-10-06 from the live `/logs` trace.
 
+> **Status (2026-10-07).** Foundation + all six items implemented and on
+> `fix/logs-login-redirect` (PR #1); see `READOUT.md` for the graded review.
+> - **S0 eval integrity** ✅ harness runs, suite 309/0, baseline committed
+> - **S1 cost** ✅ measured (caching ~84% when it hits, but unreliable +
+>   proxy-limited — see READOUT §5); `max_turns` config-wired
+> - **S2 monitor** ✅ `check_alerts` + `/logs` surfacing + break-on-purpose test
+> - **S4 graceful** ✅ model/retrieval/tool/timeout all degrade; fault tests
+> - **S6 routing** ✅ built + tested, OFF by default (proxy serves one model)
+> - **S3 complaints** ✅ 10 cases, 10/10 pass
+> - **Config hygiene** ✅ model/agent/alert knobs centralized
+> - **Human-only, prepared not done:** S5 user study, witnessed sign-off
+
 ## Baseline (this session: 7 real turns, logged-in demo1)
 
 | Metric | Value | Note |
@@ -69,8 +81,14 @@ time before and after.
 | Proof | before/after cost + latency shown in `/logs` |
 
 **Tasks**
-- [ ] Probe whether the proxy honors prompt caching (no-code measurement)
-- [ ] If yes: add `cache_control` on the stable prefix; measure cost drop
+- [x] Probe whether the proxy honors prompt caching (no-code measurement)
+      → **YES**: caching is automatic, warms after ~3 calls, then ~100% of
+      the stable prefix is cached (billed at the cheaper cached-in rate,
+      ~10× cheaper: $0.20 vs $2.00 /M for gpt-5.6-terra).
+- [ ] Maximize cache hits: keep the stable system prompt + tool schemas as a
+      byte-identical prefix; ensure volatile working-memory (`work.brief()`)
+      is injected AFTER it (already the case in `memory.messages()` — verify
+      and lock in). Consider pinning tool-schema order.
 - [ ] Record before/after cost + p50 on the frozen suite
 - [ ] (If needed) trim/cap history — only after S0 proves no score regression
 - [ ] Capture one reverted attempt with numbers (feeds readout §5)
