@@ -13,6 +13,8 @@ state/*
 !state/.gitkeep
 results/*
 !results/.gitkeep
+# ...but keep the committed readout baselines (the "before" numbers)
+!results/baseline_*.json
 
 # OS / editor
 .DS_Store
