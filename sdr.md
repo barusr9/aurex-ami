@@ -68,8 +68,8 @@ time before and after.
 | # | Approach | Changes | Quality risk | Win |
 |---|---|---|---|---|
 | 1 | Prompt caching on stable prefix (system + tool schemas + knowledge) | Billing only | None | Large |
-| 2 | Trim / summarize old turns before resend | Behavior | High (forgetting) | Medium–large |
-| 3 | Cap resent history via `MAX_CONVERSATION_TURNS` | Behavior | Medium | Medium |
+| 2 | Trim / summarize old turns before resend | Behavior | ~~High~~ **LOW — proven** (facts live in working memory, not just the transcript; see `test_memory::TestTrimmingPreservesFactsViaWorkingMemory`) | Medium–large |
+| 3 | Cap resent history via `MAX_CONVERSATION_TURNS` | Behavior | Low (same reason) | Medium |
 
 **Satisfied when**
 

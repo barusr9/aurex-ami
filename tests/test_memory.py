@@ -102,6 +102,66 @@ class TestConversationMemoryTrimming:
         assert "Extra instructions" in messages[1]["content"]
 
 
+class TestTrimmingPreservesFactsViaWorkingMemory:
+    """S1 cost: why trimming the transcript is SAFE.
+
+    Cutting old turns to save input tokens does NOT make the agent forget the
+    order it looked up — because the facts live in WorkingMemory (injected as
+    `work.brief()` before every step), not only in the transcript. These tests
+    pin that property so a lower MAX_CONVERSATION_TURNS can be shipped without
+    the agent going blind on an order mentioned earlier in the conversation.
+    """
+
+    def test_working_memory_keeps_order_after_transcript_is_trimmed(self):
+        # The agent looked up an order early in the conversation.
+        work = WorkingMemory(scope="raj@example.com")
+        work.record("get_order", {"order_id": "112-1111111-1111111"},
+                    {"order_id": "112-1111111-1111111",
+                     "item": "Sony WH-1000XM5 Headphones",
+                     "status": "delivered", "delivered_on": "2026-10-03"})
+
+        # Now the transcript is trimmed hard (simulating a long conversation).
+        convo = ConversationMemory("sys", max_turns=2)
+        for i in range(10):
+            convo.add_user(f"later message {i}")
+        trimmed = convo._trimmed()
+        # The early order mention is GONE from the transcript...
+        assert not any("112-1111111-1111111" in str(m) for m in trimmed)
+
+        # ...but WorkingMemory still carries the full fact, so the agent isn't
+        # blind: brief() is what rides into every step.
+        brief = work.brief()
+        assert "112-1111111-1111111" in brief
+        assert "Sony WH-1000XM5 Headphones" in brief
+        assert "delivered" in brief
+
+    def test_multiple_orders_survive_an_aggressive_cap(self):
+        """Two orders looked up across a long chat both remain in working mem."""
+        work = WorkingMemory(scope="raj@example.com")
+        work.record("get_order", {"order_id": "112-1111111-1111111"},
+                    {"order_id": "112-1111111-1111111", "item": "Headphones",
+                     "status": "delivered", "delivered_on": "2026-10-03"})
+        work.record("track_package", {"order_id": "112-2222222-2222222"},
+                    {"order_id": "112-2222222-2222222", "item": "Instant Pot",
+                     "status": "shipped", "eta": "2026-10-08"})
+
+        brief = work.brief()
+        # Both order ids present regardless of how short the transcript is cut.
+        assert "112-1111111-1111111" in brief
+        assert "112-2222222-2222222" in brief
+
+    def test_brief_tells_the_model_not_to_look_up_again(self):
+        """The brief is framed so the model reuses known facts instead of
+        re-calling tools — the mechanism that makes trimming free of a
+        'which order?' re-ask."""
+        work = WorkingMemory(scope="raj@example.com")
+        work.record("get_order", {"order_id": "112-1111111-1111111"},
+                    {"order_id": "112-1111111-1111111", "item": "Headphones",
+                     "status": "delivered"})
+        brief = work.brief().lower()
+        assert "already know" in brief or "do not look" in brief
+
+
 class TestWorkingMemoryRecords:
     """WorkingMemory records facts from tool results."""
 
