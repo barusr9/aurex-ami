@@ -37,6 +37,10 @@ before you trust a single row below it.
     python3 golden.py --only pol             rows whose id contains "pol"
     python3 golden.py --runs 3               each row three times
     python3 golden.py --judge-model gpt-4o   grade with a stronger model
+    python3 golden.py --budget 200000        stop before 200k agent tokens
+
+Golden is token-HEAVY — each row runs the agent AND an LLM judge — so watch
+the running token column and use --only / --budget to protect the key.
 
 Stage 2 changes, against the Stage 1 file: --planner plan replaces
 --planner baseline, and golden.json gains one row (a pasted card
@@ -318,6 +322,11 @@ def main():
     ap.add_argument("--audit", action="store_true",
                     help="grade the reference answers, not the agent")
     ap.add_argument("--out", default="results/golden_results.json")
+    ap.add_argument("--budget", type=int, default=0,
+                    help="Stop once this many agent tokens are spent (0 = no "
+                         "limit). Golden is token-HEAVY: each row runs the "
+                         "agent AND an LLM judge, so a full 28-row run is "
+                         "pricier than evals. The key caps on tokens.")
     a = ap.parse_args()
 
     rows = load(only=a.only)
@@ -333,16 +342,27 @@ def main():
           f"{'score':>6}  result")
 
     results = []
+    tokens_total = 0
     for row in rows:
+        # Budget guard: stop before a row that would push past the cap, rather
+        # than hitting a wall of 429s mid-run (golden is token-heavy).
+        if a.budget and tokens_total >= a.budget:
+            print(f"\n⚠  budget reached ({tokens_total:,} ≥ {a.budget:,} agent "
+                  f"tokens) — stopping before '{row['id']}'. "
+                  f"{len(results)}/{len(rows)} rows ran.")
+            break
+
         outs = [run_row(row, a.planner, a.judge_model) for _ in range(a.runs)]
         passed = sum(not o["fails"] for o in outs)
         mark = "PASS" if passed == a.runs else ("FLAKY" if passed else "FAIL")
+        tokens_total += sum(o.get("tokens", 0) for o in outs)
 
         print(f" {row['id']:<22} {_col(_mean([o['facts'] for o in outs]))} "
               f"{_col(_mean([o['retrieval'] for o in outs]))} "
               f"{_col(_mean([o['correct'] for o in outs]))} "
               f"{_col(_mean([o['grounded'] for o in outs]))} "
-              f"{_mean([o['score'] for o in outs]):6.2f}  {mark}")
+              f"{_mean([o['score'] for o in outs]):6.2f}  {mark}  "
+              f"{tokens_total:>7,} tok")
         for f in dict.fromkeys(f for o in outs for f in o["fails"]):
             print(f"   - {f}")
         results.append({"row": row["id"], "planner": a.planner,
@@ -350,7 +370,8 @@ def main():
 
     flat = [o for r in results for o in r["outcomes"]]
     passed = sum(r["passed"] for r in results)
-    total = len(rows) * a.runs
+    # Count only rows actually run (the budget guard may have stopped early).
+    total = len(results) * a.runs
     agent_cost = sum(o["cost"] for o in flat)
     judge_cost = sum(o["judge_cost"] for o in flat)
 
