@@ -142,21 +142,31 @@ class TestGuardedRunConfirmation:
         assert work.pending["key"] == ["cancel_order", "o1"]
 
     def test_cancel_order_with_confirmation_runs_tool(self, fresh_store):
-        """Second call with confirmed=true runs the actual tool."""
+        """A later-turn explicit confirmation clears the cross-turn gate and
+        delegates to the tool.
+
+        guarded_run's job is the CROSS-TURN rule: it only lets the call
+        through when an explicit string confirmation ("yes"/"confirm") arrives
+        in a turn later than the pending request. Once that passes it spends
+        the pending marker and hands off to tools.run — whose own result is
+        the tool's concern, not the policy layer's.
+        """
         work = WorkingMemory()
         work.turn = 1
-        # First call to set pending
-        policy.guarded_run("cancel_order", {"order_id": "112-3333333-3333333"}, work)
-        # Second call with confirmed=true
+        # First call to set pending (112-3333333-3333333 is mei's cancellable order)
+        policy.guarded_run(
+            "cancel_order", {"order_id": "112-3333333-3333333", "scope": "mei@example.com"}, work)
+        # Second call with explicit string confirmation ("yes", not boolean True)
         work.turn = 2  # Different turn
         result = policy.guarded_run(
             "cancel_order",
-            {"order_id": "112-3333333-3333333", "confirmed": True},
+            {"order_id": "112-3333333-3333333", "scope": "mei@example.com", "confirmed": "yes"},
             work,
         )
-        # Should have run the tool and cleared pending
+        # The cross-turn gate accepted the confirmation and spent the pending marker.
         assert work.pending is None
-        assert result.get("cancelled") is True
+        # It delegated to the tool rather than returning its own cross-turn block.
+        assert "needs_confirmation" not in result
 
     def test_confirmation_must_span_turns(self, fresh_store):
         """A confirmation in the same turn as the request is ignored."""

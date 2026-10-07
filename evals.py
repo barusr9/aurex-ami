@@ -158,6 +158,26 @@ CASES = [
 ]
 
 
+def _scope_for(case, store):
+    """Who the eval agent is logged in as.
+
+    The seed orders are split across customers (raj and mei), so a fixed
+    scope would lock the agent out of half the cases. Instead, read the
+    order id out of the turns and authenticate as whoever owns it — the
+    state a real customer is in when they ask about their own order. Falls
+    back to an explicit case["scope"], then to the first seed owner.
+    """
+    if "scope" in case:
+        return case["scope"]
+    text = " ".join(case.get("turns", []))
+    for oid, order in store.ORDERS.items():
+        if oid in text:
+            return order["email"]
+    # Cases that name no order (policy/rag/out-of-scope) — any authenticated
+    # identity works; use the first seed owner for determinism.
+    return next(iter(store.ORDERS.values()))["email"]
+
+
 def run_case(case, planner_name):
     """One fresh agent, one case. Returns what happened, not whether it passed."""
     from ami import store, tools, memory, planner, plan_execute, agent_profile, policy, observe
@@ -190,11 +210,11 @@ def run_case(case, planner_name):
                   "plan": (plan_execute.plan_execute, plan_execute.PLANNING_RULES),
                   "chains_of_thought": (planner.chains_of_thought, planner.CHAINS_OF_THOUGHT_RULES)}[planner_name]
     convo = memory.ConversationMemory(agent_profile.system_prompt() + rules)
-    # The cases exercise raj@example.com's seed orders, so the eval agent runs
-    # authenticated as that user — the state a real customer is in by the time
-    # they ask about their own order. The auth GATE itself (refusing an
-    # unauthenticated account query) is covered in tests/test_isolation.py.
-    work = memory.WorkingMemory(scope=case.get("scope", "raj@example.com"))
+    # Authenticate as whoever owns the order in this case (see _scope_for) —
+    # the state a real customer is in when they ask about their own order. The
+    # auth GATE itself (refusing an unauthenticated account query) is covered
+    # in tests/test_isolation.py.
+    work = memory.WorkingMemory(scope=_scope_for(case, store))
     longterm = memory.LongTermMemory("/dev/null")    # evals never touch real customers
 
     seq0 = observe.SEQ

@@ -79,10 +79,13 @@ class TestOrderIsolation:
         assert "error" in result
         assert "No order found" in result["error"]
 
-    def test_cancel_order_own_order(self):
+    def test_cancel_order_own_order(self, fresh_store):
         """User can cancel their own order (if it's cancellable)."""
-        # Order 112-3333333-3333333 (mei's) is in "preparing" state, cancellable
-        result = tools.cancel_order("112-3333333-3333333", scope="mei@example.com")
+        # Order 112-3333333-3333333 (mei's) is in "preparing" state, cancellable.
+        # cancel_order now needs an explicit string confirmation ("yes"/"confirm")
+        # to actually perform the action; without it it only returns a preview.
+        result = tools.cancel_order(
+            "112-3333333-3333333", scope="mei@example.com", confirmed="yes")
         assert "error" not in result
         assert result["cancelled"] is True
 
@@ -93,7 +96,7 @@ class TestOrderIsolation:
         assert "error" in result
         assert "No order found" in result["error"]
 
-    def test_start_return_own_order(self):
+    def test_start_return_own_order(self, fresh_store):
         """User can start return for their own delivered order (if in window)."""
         # Create a fresh order that's delivered but within return window
         # For testing, we just verify scope isolation — the business logic errors are expected

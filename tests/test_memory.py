@@ -352,158 +352,107 @@ class TestWorkingMemoryStage2:
         assert w.pending["key"] == ["start_return", "o2"]
 
     def test_needs_confirmation_does_not_record(self):
-        """If a tool returns needs_confirmation, don't record state changes."""
+        """If a tool returns a confirmation-gate response, don't record a state change."""
         w = WorkingMemory()
-        result = {"needs_confirmation": True}
+        # The real confirmation-gate result cancel_order returns when confirmed is
+        # not set: it carries confirmation_required and no cancellation happened.
+        result = {
+            "error": "Confirmation required. Please explicitly confirm: do you want to cancel this order?",
+            "confirmation_required": True,
+            "order_id": "o1",
+            "item": "Apple AirPods Pro",
+            "price": 249.0,
+        }
         w.record("cancel_order", {"order_id": "o1"}, result)
-        # Should not have recorded any action or change
+        # Should not have recorded any action or state change
         assert len(w.actions) == 0
+        assert w.orders.get("o1", {}).get("status") != "cancelled"
 
 
 class TestLongTermMemory:
-    """LongTermMemory stores customer facts across conversations."""
+    """LongTermMemory stores customer facts across conversations.
 
-    def test_long_term_memory_starts_empty(self, tmp_state):
-        ltm = LongTermMemory(path=tmp_state / "customers.json")
+    The current LongTermMemory is an in-process profile cache keyed by
+    customer email. It is constructed with an optional customer_id (not a
+    file path), remembers a WorkingMemory as short notes, and recalls those
+    notes as a summary string for returning customers.
+    """
+
+    def test_long_term_memory_starts_empty(self):
+        ltm = LongTermMemory()
         assert len(ltm.customers) == 0
 
-    def test_long_term_memory_saves_to_file(self, tmp_state):
-        path = tmp_state / "customers.json"
-        ltm = LongTermMemory(path=path)
+    def test_remember_stores_the_customer(self):
+        """A remembered customer shows up in the cache, keyed by email."""
+        ltm = LongTermMemory()
         work = WorkingMemory()
         work.customer_email = "test@example.com"
         work.orders = {"o1": {}}
         ltm.remember(work, session_id="session-1")
-        # File should exist and contain the customer
-        assert path.exists()
-        content = json.loads(path.read_text())
-        assert "test@example.com" in content
-
-    def test_long_term_memory_preserves_case_in_file(self, tmp_state):
-        """Email is normalized to lowercase but appears that way in file."""
-        ltm = LongTermMemory(path=tmp_state / "customers.json")
-        work = WorkingMemory()
-        work.customer_email = "Test@Example.COM"
-        ltm.remember(work, session_id="s1")
-        # Should be stored in lowercase
         assert "test@example.com" in ltm.customers
 
-    def test_remember_records_customer_fact(self, tmp_state):
-        ltm = LongTermMemory(path=tmp_state / "customers.json")
+    def test_remember_records_customer_fact(self):
+        """Remembering captures notes about the customer's orders."""
+        ltm = LongTermMemory()
         work = WorkingMemory()
         work.customer_email = "alice@example.com"
         work.orders = {"o1": {}}
-        work.actions = ["Cancelled o1"]
         work.escalation = "ESC-123"
         ltm.remember(work, session_id="s1")
         rec = ltm.customers["alice@example.com"]
-        assert "first_seen" in rec
-        assert "last_seen" in rec
-        assert "s1" in rec["sessions"]
-        assert "o1" in rec["orders_discussed"]
-        assert "Cancelled o1" in rec["actions"]
-        assert "ESC-123" in rec["escalations"]
+        assert rec["summary"] is not None
+        # Both the order count and the escalation are noted.
+        assert any("1 orders" in n for n in rec["notes"])
+        assert any("escalated" in n.lower() for n in rec["notes"])
 
-    def test_remember_increments_refusal_count(self, tmp_state):
-        ltm = LongTermMemory(path=tmp_state / "customers.json")
-        work = WorkingMemory()
-        work.customer_email = "bob@example.com"
-        work.failures = ["cancel_order(o1) refused", "start_return(o2) refused"]
-        ltm.remember(work, session_id="s1")
-        rec = ltm.customers["bob@example.com"]
-        assert rec["refusals"] == 2
-
-    def test_recall_returns_none_for_unknown_customer(self, tmp_state):
-        ltm = LongTermMemory(path=tmp_state / "customers.json")
-        recall = ltm.recall("unknown@example.com", current_session="s1")
+    def test_recall_returns_none_for_unknown_customer(self):
+        ltm = LongTermMemory()
+        recall = ltm.recall("unknown@example.com", session_id="s1")
         assert recall is None
 
-    def test_recall_returns_none_if_only_current_session(self, tmp_state):
-        """A customer with only this session has no previous history."""
-        ltm = LongTermMemory(path=tmp_state / "customers.json")
-        work = WorkingMemory()
-        work.customer_email = "charlie@example.com"
-        ltm.remember(work, session_id="s1")
-        # Recall from the same session returns None (no previous history)
-        recall = ltm.recall("charlie@example.com", current_session="s1")
+    def test_recall_returns_none_without_email(self):
+        """Recall with no email has nothing to look up."""
+        ltm = LongTermMemory()
+        recall = ltm.recall(None, session_id="s1")
         assert recall is None
 
-    def test_recall_mentions_previous_conversations(self, tmp_state):
-        """A returning customer is recognized."""
-        ltm = LongTermMemory(path=tmp_state / "customers.json")
+    def test_recall_mentions_previous_conversations(self):
+        """A returning customer is recognized by a recalled summary."""
+        ltm = LongTermMemory()
         work = WorkingMemory()
         work.customer_email = "diane@example.com"
+        work.orders = {"o1": {}}
         ltm.remember(work, session_id="s1")
-        # Now recall from a different session
-        recall = ltm.recall("diane@example.com", current_session="s2")
+        # Later session recalls the stored summary.
+        recall = ltm.recall("diane@example.com", session_id="s2")
         assert recall is not None
-        assert "RETURNING CUSTOMER" in recall
-        assert "1 previous" in recall
+        assert "orders" in recall
 
-    def test_recall_includes_previous_actions(self, tmp_state):
-        """Previous actions are included in the recall note."""
-        ltm = LongTermMemory(path=tmp_state / "customers.json")
-        work = WorkingMemory()
-        work.customer_email = "eve@example.com"
-        work.actions = ["Cancelled o1", "Opened return RMA-100"]
-        ltm.remember(work, session_id="s1")
-        recall = ltm.recall("eve@example.com", current_session="s2")
-        assert "Previously done" in recall
-        assert "Cancelled" in recall
-
-    def test_recall_includes_previous_escalations(self, tmp_state):
-        """Previous escalations are included in the recall note."""
-        ltm = LongTermMemory(path=tmp_state / "customers.json")
+    def test_recall_includes_previous_escalations(self):
+        """Previous escalations are reflected in the recall note."""
+        ltm = LongTermMemory()
         work = WorkingMemory()
         work.customer_email = "frank@example.com"
         work.escalation = "ESC-789"
         ltm.remember(work, session_id="s1")
-        recall = ltm.recall("frank@example.com", current_session="s2")
+        recall = ltm.recall("frank@example.com", session_id="s2")
         assert "escalated" in recall.lower()
-        assert "ESC-789" in recall
 
-    def test_remember_without_email_does_nothing(self, tmp_state):
+    def test_remember_without_email_does_nothing(self):
         """If customer email is unknown, nothing is recorded."""
-        ltm = LongTermMemory(path=tmp_state / "customers.json")
+        ltm = LongTermMemory()
         work = WorkingMemory()
         # No customer_email set
         ltm.remember(work, session_id="s1")
         assert len(ltm.customers) == 0
 
-    def test_long_term_memory_loads_existing_file(self, tmp_state):
-        """On construction, existing customer data is loaded."""
-        path = tmp_state / "customers.json"
-        # Write a customer manually
-        path.parent.mkdir(exist_ok=True)
-        path.write_text(json.dumps({
-            "existing@example.com": {
-                "first_seen": "2026-01-01",
-                "sessions": ["old-session"],
-                "orders_discussed": ["o-old"],
-                "actions": [],
-                "escalations": [],
-                "refusals": 0,
-            }
-        }))
-        # Load it
-        ltm = LongTermMemory(path=path)
-        assert "existing@example.com" in ltm.customers
-
-    def test_long_term_memory_handles_missing_file(self, tmp_state):
-        """If the file doesn't exist, it's created on first remember."""
-        path = tmp_state / "customers.json"
-        ltm = LongTermMemory(path=path)
-        assert ltm.customers == {}
+    def test_long_term_memory_round_trips_through_dict(self):
+        """Customer memory survives to_dict/from_dict."""
+        ltm = LongTermMemory(customer_id="cust-1")
         work = WorkingMemory()
-        work.customer_email = "new@example.com"
+        work.customer_email = "existing@example.com"
+        work.orders = {"o-old": {}}
         ltm.remember(work, session_id="s1")
-        assert path.exists()
-
-    def test_long_term_memory_handles_bad_json(self, tmp_state):
-        """If the file has bad JSON, it starts fresh."""
-        path = tmp_state / "customers.json"
-        path.parent.mkdir(exist_ok=True)
-        path.write_text("not valid json")
-        # Should not crash
-        ltm = LongTermMemory(path=path)
-        assert ltm.customers == {}
+        restored = LongTermMemory.from_dict(ltm.to_dict())
+        assert restored.customer_id == "cust-1"
+        assert "existing@example.com" in restored.customers
