@@ -5,6 +5,11 @@
     python3 evals.py --runs 3            each case three times (they are not deterministic)
     python3 evals.py --only guard        cases whose name contains "guard"
     python3 evals.py --out results/eval_results.json    where to write the results
+    python3 evals.py --budget 170000     stop before spending > 170k tokens
+
+Every line shows the running token total; the key caps on TOKENS (not
+dollars), and a full suite run is ~170k tokens, so watch that column and
+use --only / --budget to avoid exhausting the key.
 
 A case says what a good answer looks like in terms we can CHECK:
 
@@ -315,6 +320,10 @@ def run_case(case, planner_name):
         "transcript": json.dumps(convo.history),
         "store": {oid: o["status"] for oid, o in store.ORDERS.items()},
         "llm_calls": len(llm), "cost": sum(e.get("cost") or 0 for e in llm),
+        # Tokens are the real budget constraint (the key caps on tokens, not
+        # dollars), so the budget guard in main() needs them per case.
+        "tokens": sum((e.get("tokens_in") or 0) + (e.get("tokens_out") or 0)
+                      for e in llm),
         "ms": round((time.perf_counter() - t0) * 1000),
     }
 
@@ -365,13 +374,30 @@ def main():
     ap.add_argument("--out", default="results/eval_results.json")
     ap.add_argument("--feedback", action="store_true",
                     help="Show impact of feedback from state/feedback.jsonl on golden set")
+    ap.add_argument("--budget", type=int, default=0,
+                    help="Stop the run once this many tokens have been spent "
+                         "(0 = no limit). The API key caps on TOKENS, not "
+                         "dollars, so this is the guard that matters — a full "
+                         "suite run is ~170k tokens.")
     a = ap.parse_args()
 
     cases = [c for c in CASES if a.only.lower() in c["name"].lower()]
-    print(f"{len(cases)} cases × {a.runs} run(s) · planner={a.planner}\n")
+    budget_note = f" · budget {a.budget:,} tok" if a.budget else ""
+    print(f"{len(cases)} cases × {a.runs} run(s) · planner={a.planner}{budget_note}\n")
 
     results, passed_total = [], 0
+    tokens_total = 0
+    stopped_early = False
     for case in cases:
+        # Budget guard: the key caps on tokens. Stop BEFORE a case that would
+        # push us over, rather than discovering it as a wall of 429s.
+        if a.budget and tokens_total >= a.budget:
+            print(f"\n⚠  budget reached ({tokens_total:,} ≥ {a.budget:,} tokens) "
+                  f"— stopping before '{case['name']}'. "
+                  f"{len(results)}/{len(cases)} cases ran.")
+            stopped_early = True
+            break
+
         outcomes = []
         for _ in range(a.runs):
             r = run_case(case, a.planner)
@@ -382,19 +408,21 @@ def main():
         cost = sum(o["cost"] for o in outcomes) / len(outcomes)
         calls = sum(o["llm_calls"] for o in outcomes) / len(outcomes)
         ms = sum(o["ms"] for o in outcomes) / len(outcomes)
+        tokens_total += sum(o.get("tokens", 0) for o in outcomes)
         mark = "PASS" if ok == a.runs else ("FLAKY" if ok else "FAIL")
         print(f"{mark:5} {ok}/{a.runs}  {case['name']:<40} {calls:4.1f} calls  "
-              f"${cost:.4f}  {ms:6.0f}ms")
+              f"${cost:.4f}  {ms:6.0f}ms  {tokens_total:>7,} tok")
         for o in outcomes:
             for f in o["fails"]:
                 print(f"           - {f}")
         results.append({"case": case["name"], "planner": a.planner,
                         "passed": ok, "runs": a.runs, "outcomes": outcomes})
 
-    total = len(cases) * a.runs
+    total = sum(r["runs"] for r in results) if stopped_early else len(cases) * a.runs
     print(f"\n{passed_total}/{total} passed  "
           f"({100 * passed_total // total if total else 0}%)  ·  "
-          f"total cost ${sum(o['cost'] for r in results for o in r['outcomes']):.3f}")
+          f"total cost ${sum(o['cost'] for r in results for o in r['outcomes']):.3f}  ·  "
+          f"{tokens_total:,} tokens")
 
     # Feedback analysis: show impact if --feedback is set
     if a.feedback:
