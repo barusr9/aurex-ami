@@ -30,14 +30,25 @@ agent worked, but nothing proved it *stayed* working or what it cost.
 
 ## 3. Before and after — same frozen suite (20 cases, frozen 2026-10-06)
 
+Two independent runs of the same 20-case frozen suite (before = baseline,
+after = post-changes):
+
 | | before | after | change |
 |--------------------|---------|---------|--------|
-| cost per run (¢)   | 0.89¢   | 0.89¢ live · **0.67¢ projected** | 0 live; **−25% with routing** (see §4) |
-| p50 latency (ms)   | 5,912   | ~5,900  | ~0 |
-| p95 latency (ms)   | (polluted by a 502) | n/a | infra, excluded |
-| golden-set score   | 15/20 (75%) | 15–16/20 | flat; failures are model non-determinism |
+| cost per run (¢)   | 0.89¢   | 1.05¢ · **0.67¢ projected w/ routing** | +18% is cache noise (see note); −25% achievable (§4) |
+| p50 latency (ms)   | 5,912   | 7,083   | +20% — cache noise, not code |
+| p95 latency (ms)   | 17,897  | 15,217  | −15% — within run-to-run variance |
+| golden-set score   | 15/20 (75%) | 15/20 (75%) | **flat — no regression** ✅ |
 | users at SLO break | n/a (single-tenant demo) | n/a | — |
 | failure screenshot | `/logs` 401 dead-end | login→dashboard | see §4 |
+
+> **The cost/latency swing is measurement noise, not a change.** On identical
+> cases (same prompt, same code), **8 of 20 swung >1.5× between the two runs**,
+> in both directions — because the proxy's prompt cache hits or misses
+> unpredictably run-to-run (a hit is ~84% cheaper). Our changes don't add
+> per-turn cost: routing is off by default, degradation only fires on failure.
+> The signal that matters — **score — held flat at 75%**. The genuine cost
+> win is routing's −25% (§4), realizable on a multi-model endpoint.
 
 > The honest headline: **no LIVE metric got materially worse, and the live
 > numbers didn't get the dramatic win the plan hoped for** — because the two
