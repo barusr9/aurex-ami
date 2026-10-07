@@ -511,7 +511,13 @@ class Handler(BaseHTTPRequestHandler):
                         # Remember
                         LONGTERM.remember(work, session_id=sid)
                     except Exception as e:
-                        reply = f"Something went wrong: {type(e).__name__}: {e}"
+                        # Degrade gracefully: the customer gets a calm, honest
+                        # message and an offer to escalate — never a stack
+                        # trace (bad UX, and a leak of internals). The real
+                        # error goes to the trace for ops.
+                        observe.log("degraded", reason="turn_exception",
+                                    error=f"{type(e).__name__}: {e}")
+                        reply = planner.DEGRADED_REPLY
 
                 observe.log("turn", user=text, steps=len(steps), ms=t.ms,
                             actions=len(work.actions) - before,

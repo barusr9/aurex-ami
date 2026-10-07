@@ -186,11 +186,23 @@ def search(question, k=3, category=None):
     search. Keep the argument for inspecting the corpus by hand; revisit
     the filter when there are enough documents for it to pay for itself.
     """
-    with observe.timer() as t:
-        found = collection().query(
-            query_texts=[question],
-            n_results=k,
-            where={"category": category} if category else None)
+    # If the vector store is unavailable (missing index, corrupt cache, a
+    # bad embed call), degrade gracefully: return nothing rather than raise.
+    # An empty result makes search_knowledge say "I couldn't look that up",
+    # which is honest — far better than a 500, and better than the agent
+    # inventing a policy because the lookup silently vanished.
+    try:
+        with observe.timer() as t:
+            found = collection().query(
+                query_texts=[question],
+                n_results=k,
+                where={"category": category} if category else None)
+    except Exception as e:
+        # t.ms is set by the timer's __exit__, which has already run by the
+        # time the exception reaches here.
+        observe.log("retrieval", question=question, ms=getattr(t, "ms", 0),
+                    category=category, error=f"{type(e).__name__}: {e}")
+        return []
 
     hits = []
     for doc, meta, distance in zip(found["documents"][0],
