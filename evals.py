@@ -175,8 +175,11 @@ def run_case(case, planner_name):
         # this: a claim that is in the reply but not in here was invented.
         observed.append({"tool": name, "args": args, "result": result})
         return result
-    def spy_run(name, args, _r=real_run):
-        out = _r(name, args)
+    # The spies must match the real signatures. tools.run now takes a scope
+    # kwarg (data isolation), so the stand-in has to accept and forward it or
+    # the planner's tools.run(name, args, scope=...) call raises.
+    def spy_run(name, args, scope=None, _r=real_run):
+        out = _r(name, args, scope=scope)
         executed.append(name)
         if "error" in out and not out.get("retry"):
             refused.append(name)
@@ -187,7 +190,11 @@ def run_case(case, planner_name):
                   "plan": (plan_execute.plan_execute, plan_execute.PLANNING_RULES),
                   "chains_of_thought": (planner.chains_of_thought, planner.CHAINS_OF_THOUGHT_RULES)}[planner_name]
     convo = memory.ConversationMemory(agent_profile.system_prompt() + rules)
-    work = memory.WorkingMemory()
+    # The cases exercise raj@example.com's seed orders, so the eval agent runs
+    # authenticated as that user — the state a real customer is in by the time
+    # they ask about their own order. The auth GATE itself (refusing an
+    # unauthenticated account query) is covered in tests/test_isolation.py.
+    work = memory.WorkingMemory(scope=case.get("scope", "raj@example.com"))
     longterm = memory.LongTermMemory("/dev/null")    # evals never touch real customers
 
     seq0 = observe.SEQ
@@ -198,17 +205,30 @@ def run_case(case, planner_name):
             text, note = policy.check_input(text)
             work.turn += 1
             convo.add_user(text)
+            # The two planners take different arguments: plan_execute threads a
+            # longterm store and the policy note through; react reads working
+            # memory directly and takes neither. Pass each only what it accepts.
+            kwargs = {"trace": False}
+            if planner_name == "plan":
+                kwargs["longterm"], kwargs["extra"] = longterm, note
             with contextlib.redirect_stdout(io.StringIO()):
-                reply = run(convo, work, trace=False, longterm=longterm, extra=note)
+                reply = run(convo, work, **kwargs)
             reply = policy.check_output(reply, work, text)
     except Exception as e:
         error = f"{type(e).__name__}: {e}"
     finally:
         policy.guarded_run, tools.run = real_guard, real_run
 
+    # "What the agent asked for" depends on the planner's dispatch path:
+    # react calls tools.run directly (bypassing the policy guard), so its
+    # requests land in `executed`; plan_execute routes through guarded_run,
+    # which can answer WITHOUT running the tool (a confirmation preview), so
+    # its requests land in `requested`. Score against the right list.
+    called = executed if planner_name in ("react", "chains_of_thought") else requested
+
     llm = [e for e in observe.EVENTS if e.get("seq", 0) > seq0 and e["kind"] == "llm"]
     return {
-        "called": requested, "executed": executed, "refused": refused,
+        "called": called, "executed": executed, "refused": refused,
         "observed": observed, "reply": reply, "error": error,
         "transcript": json.dumps(convo.history),
         "store": {oid: o["status"] for oid, o in store.ORDERS.items()},
