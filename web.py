@@ -15,6 +15,7 @@ import threading
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 
 from ami import agent_profile as profile
 from ami import dashboard
@@ -288,20 +289,30 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def _redirect(self, location):
+        """Send a 302 so the browser follows along to a page it can use."""
+        self.send_response(302)
+        self.send_header("Location", location)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_GET(self):
+        # Route on the path alone; a query string (e.g. /login?next=/logs) must
+        # not change which handler runs.
+        path = urlparse(self.path).path
         try:
-            if self.path in ("/login", "/login.html"):
+            if path in ("/login", "/login.html"):
                 login_page = (ROOT / "ui" / "login.html").read_text()
                 self._send(login_page, "text/html")
                 return
 
-            if self.path in ("/", "/index.html"):
+            if path in ("/", "/index.html"):
                 self._session()
                 self._send(PAGE, "text/html")
                 return
 
             # /state: optional auth
-            if self.path == "/state":
+            if path == "/state":
                 user_id = None
                 try:
                     user_id, _ = self._authenticate()
@@ -311,13 +322,23 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(json.dumps({**state(session, user_id), "stale": self.stale}))
                 return
 
-            # /logs: requires auth
-            user_id, _ = self._authenticate()
-            if self.path == "/logs":
+            # /logs: requires auth. The page itself redirects an unauthenticated
+            # browser to the login form (and back here after) rather than showing
+            # a raw 401 you can't act on. The data endpoints below stay strict
+            # 401s — they're fetched by JS, which wants a status code, not HTML.
+            if path == "/logs":
+                try:
+                    self._authenticate()
+                except AuthError:
+                    self._redirect("/login?next=/logs")
+                    return
                 self._send(dashboard.PAGE, "text/html")
-            elif self.path == "/logs.json":
+                return
+
+            user_id, _ = self._authenticate()
+            if path == "/logs.json":
                 self._send(json.dumps({"stats": observe.stats(), "events": observe.recent(120)}))
-            elif self.path == "/trace.jsonl":
+            elif path == "/trace.jsonl":
                 try:
                     self._send(observe.LOGFILE.read_text(), "text/plain")
                 except OSError:

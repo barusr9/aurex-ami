@@ -82,8 +82,12 @@ async function handleLogin(event) {
 
     if (data.ok) {
       // Token is now set as HTTP-only cookie by server
-      // No need to store in localStorage — browser handles it automatically
-      window.location.href = '/';
+      // No need to store in localStorage — browser handles it automatically.
+      // Return to wherever the user was headed (e.g. /logs), but only if it is
+      // a local path — never an absolute URL, which would be an open redirect.
+      const next = new URLSearchParams(location.search).get('next');
+      const dest = (next && next.startsWith('/') && !next.startsWith('//')) ? next : '/';
+      window.location.href = dest;
     } else {
       throw new Error(data.error || 'Login failed');
     }
