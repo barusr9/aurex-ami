@@ -13,8 +13,16 @@ state/*
 !state/.gitkeep
 results/*
 !results/.gitkeep
+# ...but keep the committed readout artifacts (baseline "before" numbers,
+# and the S3 complaint-case "after" results)
+!results/baseline_*.json
+!results/complaints.json
+!results/s6_routing_simulation.json
+!results/after_react.json
 
 # OS / editor
 .DS_Store
 .vscode/
 .venv/
+.gstack/
+.claude/

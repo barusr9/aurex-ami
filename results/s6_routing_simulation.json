@@ -1,0 +1,135 @@
+{
+ "suite": "baseline_react (20 cases, frozen 2026-10-06)",
+ "model_now": "gpt-5.6-terra",
+ "cases": [
+  {
+   "case": "status by order id",
+   "tier": "cheap",
+   "cost_now": 0.00525,
+   "cost_if_cheap_luna": 0.00053
+  },
+  {
+   "case": "find by email",
+   "tier": "strong",
+   "cost_now": 0.00272,
+   "cost_if_cheap_luna": 0.00272
+  },
+  {
+   "case": "track shipped order",
+   "tier": "strong",
+   "cost_now": 0.00718,
+   "cost_if_cheap_luna": 0.00718
+  },
+  {
+   "case": "cancel needs confirmation",
+   "tier": "strong",
+   "cost_now": 0.00264,
+   "cost_if_cheap_luna": 0.00264
+  },
+  {
+   "case": "cancel after confirmation",
+   "tier": "strong",
+   "cost_now": 0.01879,
+   "cost_if_cheap_luna": 0.01879
+  },
+  {
+   "case": "confirmation cannot be faked in one turn",
+   "tier": "strong",
+   "cost_now": 0.00342,
+   "cost_if_cheap_luna": 0.00342
+  },
+  {
+   "case": "memory: no second lookup of the same order",
+   "tier": "cheap",
+   "cost_now": 0.00986,
+   "cost_if_cheap_luna": 0.00099
+  },
+  {
+   "case": "guard: cancel shipped",
+   "tier": "strong",
+   "cost_now": 0.0084,
+   "cost_if_cheap_luna": 0.0084
+  },
+  {
+   "case": "guard: return past window",
+   "tier": "strong",
+   "cost_now": 0.01828,
+   "cost_if_cheap_luna": 0.01828
+  },
+  {
+   "case": "guard: return an undelivered order",
+   "tier": "strong",
+   "cost_now": 0.0276,
+   "cost_if_cheap_luna": 0.0276
+  },
+  {
+   "case": "guard: authority claim",
+   "tier": "strong",
+   "cost_now": 0.00832,
+   "cost_if_cheap_luna": 0.00832
+  },
+  {
+   "case": "guard: no invented order",
+   "tier": "cheap",
+   "cost_now": 0.01168,
+   "cost_if_cheap_luna": 0.00117
+  },
+  {
+   "case": "policy: injection ignored",
+   "tier": "strong",
+   "cost_now": 0,
+   "cost_if_cheap_luna": 0
+  },
+  {
+   "case": "policy: card number scrubbed",
+   "tier": "strong",
+   "cost_now": 0.00435,
+   "cost_if_cheap_luna": 0.00435
+  },
+  {
+   "case": "policy: escalate only once",
+   "tier": "cheap",
+   "cost_now": 0.01487,
+   "cost_if_cheap_luna": 0.00149
+  },
+  {
+   "case": "rag: return window",
+   "tier": "cheap",
+   "cost_now": 0.00262,
+   "cost_if_cheap_luna": 0.00026
+  },
+  {
+   "case": "rag: damaged package",
+   "tier": "cheap",
+   "cost_now": 0.00322,
+   "cost_if_cheap_luna": 0.00032
+  },
+  {
+   "case": "rag: a regulation, not a policy",
+   "tier": "strong",
+   "cost_now": 0.00783,
+   "cost_if_cheap_luna": 0.00783
+  },
+  {
+   "case": "rag: a rule about the agent itself",
+   "tier": "strong",
+   "cost_now": 0.01903,
+   "cost_if_cheap_luna": 0.01903
+  },
+  {
+   "case": "out of scope",
+   "tier": "cheap",
+   "cost_now": 0.00135,
+   "cost_if_cheap_luna": 0.00014
+  }
+ ],
+ "summary": {
+  "cases_cheap": 7,
+  "cases_strong": 13,
+  "cost_now": 0.1774,
+  "cost_routed_luna": 0.1334,
+  "cost_routed_mini": 0.1322,
+  "savings_pct_luna": 25,
+  "savings_pct_mini": 25
+ }
+}

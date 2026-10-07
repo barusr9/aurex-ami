@@ -8,14 +8,17 @@ import os
 import time
 
 from dotenv import load_dotenv
-from openai import OpenAI, RateLimitError
+from openai import OpenAI, RateLimitError, APIStatusError
 
 from ami import observe
 from ami import pricing
+from ami.config import config
 
 load_dotenv()
 
-MODEL = os.getenv("MODEL", "gpt-4o-mini")
+# Model and retry budget come from config (one source of truth); the env
+# vars they read still work exactly as before.
+MODEL = config.MODEL
 
 _client = OpenAI(
     api_key=os.environ["OPENAI_API_KEY"],
@@ -23,7 +26,13 @@ _client = OpenAI(
 )
 
 
-RATE_LIMIT_TRIES = 6
+RATE_LIMIT_TRIES = config.LLM_RETRY_TRIES
+
+# A gateway hiccup (502/503/504) is the proxy or its origin being briefly
+# unreachable, not our request being wrong. Like a 429 it clears on its own,
+# so it is a wait, not a failure — otherwise one transient 502 kills a whole
+# eval run (observed: a single 502 crashed the suite mid-way).
+RETRYABLE_STATUS = {502, 503, 504}
 
 
 def _call(kwargs):
@@ -52,6 +61,17 @@ def _call(kwargs):
                                            # which is the window being enforced
             observe.log("llm", model=kwargs.get("model"), ms=0,
                         error=f"rate limited, waiting {wait}s")
+            time.sleep(wait)
+        except APIStatusError as e:
+            # Only transient gateway errors are worth retrying; a 400/401/404
+            # is our mistake and will fail identically on the next try.
+            if getattr(e, "status_code", None) not in RETRYABLE_STATUS:
+                raise
+            if attempt == RATE_LIMIT_TRIES - 1:
+                raise
+            wait = 2 ** (attempt + 1)
+            observe.log("llm", model=kwargs.get("model"), ms=0,
+                        error=f"gateway {e.status_code}, waiting {wait}s")
             time.sleep(wait)
 
 

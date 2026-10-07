@@ -13,8 +13,9 @@ import json
 
 from ami import tools
 from ami.llm import MODEL, complete
+from ami.config import config
 
-MAX_STEPS = 6   # stop a runaway loop from calling tools forever
+MAX_STEPS = config.MAX_STEPS   # stop a runaway loop from calling tools forever
 
 
 def respond(messages, verbose=True, scope=None):

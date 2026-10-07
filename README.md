@@ -76,18 +76,34 @@ dashboard of model calls, tool usage, cost per turn, and latency percentiles
 
 ## Evals
 
+Evals make real model calls, so they need a working API key in `.env` and
+cost a few cents per full run. Results land in `results/eval_results.json`
+with cost, latency and steps per case.
+
 ```bash
-python3 evals.py                 # score every golden case in golden.json once
+python3 evals.py                 # score every case once (ReAct planner)
 python3 evals.py --planner plan  # score the plan-and-execute planner
-python3 evals.py --runs 3        # three runs each (answers are not deterministic)
+python3 evals.py --runs 3        # three runs each — answers are not deterministic,
+                                 # so a case can pass one run and fail the next
+python3 evals.py --only guard    # just cases whose name contains "guard"
 ```
+
+The eval agent runs authenticated as the order's owner (the seed orders
+belong to several demo customers); the auth *gate* itself is covered by the
+unit tests in `tests/test_isolation.py`.
 
 ## Tests
 
 ```bash
-pip install pytest             # not in requirements.txt — test-only dependency
-pytest                         # run the unit tests in tests/
+pip install pytest                                 # test-only dependency
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest            # run the unit tests in tests/
 ```
+
+> **Why the env var:** if a globally-installed `langsmith` is present, its
+> pytest plugin crashes at collection on Python 3.12 (a pydantic/ForwardRef
+> incompatibility) before any test runs. `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`
+> skips third-party plugin autoloading so the suite collects. Plain `pytest`
+> works in environments without that package.
 
 ## What's inside
 

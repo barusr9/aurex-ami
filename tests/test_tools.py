@@ -6,6 +6,7 @@ The tools live in tools.py and are called by the planner. Tests pin:
 - Tool execution never raises (errors come back as data)
 """
 
+import inspect
 import json
 from unittest.mock import Mock, patch
 
@@ -32,8 +33,9 @@ class TestToolSchemas:
         """cancel_order requires order_id. Stage 2 adds optional confirmed field."""
         schema = next(s for s in tools.SCHEMAS if s["function"]["name"] == "cancel_order")
         assert "order_id" in schema["function"]["parameters"]["required"]
-        # Stage 2: confirmed field is in the schema (optional, used by policy layer)
-        assert "confirmed" in schema["function"]["parameters"]["properties"]
+        # Stage 2: confirmed is a policy-layer safety parameter on the tool function
+        # (injected by the policy layer, not exposed to the model in the schema).
+        assert "confirmed" in inspect.signature(tools.cancel_order).parameters
 
     def test_start_return_schema_requires_order_id_and_reason(self):
         """start_return requires both order_id and reason. Stage 2 adds optional confirmed."""
@@ -41,8 +43,9 @@ class TestToolSchemas:
         required = schema["function"]["parameters"]["required"]
         assert "order_id" in required
         assert "reason" in required
-        # Stage 2: confirmed field is in the schema (optional, used by policy layer)
-        assert "confirmed" in schema["function"]["parameters"]["properties"]
+        # Stage 2: confirmed is a policy-layer safety parameter on the tool function
+        # (injected by the policy layer, not exposed to the model in the schema).
+        assert "confirmed" in inspect.signature(tools.start_return).parameters
 
     def test_search_knowledge_schema_requires_question(self):
         """search_knowledge requires question."""
@@ -89,26 +92,26 @@ class TestFindOrders:
     """find_orders looks up a customer's orders by email."""
 
     def test_find_orders_by_email(self, fresh_store):
-        result = tools.find_orders("raj@example.com")
+        result = tools.find_orders(scope="raj@example.com")
         assert "orders" in result
         assert len(result["orders"]) == 2
 
     def test_find_orders_is_case_insensitive(self, fresh_store):
-        result = tools.find_orders("RAJ@EXAMPLE.COM")
+        result = tools.find_orders(scope="RAJ@EXAMPLE.COM")
         assert "orders" in result
         assert len(result["orders"]) == 2
 
     def test_find_orders_strips_whitespace(self, fresh_store):
-        result = tools.find_orders("  raj@example.com  ")
+        result = tools.find_orders(scope="  raj@example.com  ")
         assert "orders" in result
 
     def test_find_orders_not_found_returns_error(self, fresh_store):
-        result = tools.find_orders("nobody@example.com")
+        result = tools.find_orders(scope="nobody@example.com")
         assert "error" in result
         assert "No orders found" in result["error"]
 
     def test_find_orders_returns_limited_fields(self, fresh_store):
-        result = tools.find_orders("raj@example.com")
+        result = tools.find_orders(scope="raj@example.com")
         order = result["orders"][0]
         # Should have these fields
         assert "order_id" in order
@@ -123,7 +126,7 @@ class TestGetOrder:
     """get_order returns full details of one order."""
 
     def test_get_order_returns_details(self, fresh_store):
-        result = tools.get_order("112-1111111-1111111")
+        result = tools.get_order("112-1111111-1111111", scope="raj@example.com")
         assert result["order_id"] == "112-1111111-1111111"
         assert "price" in result
         assert "status" in result
@@ -134,7 +137,7 @@ class TestGetOrder:
         assert "error" in result
 
     def test_get_order_strips_whitespace(self, fresh_store):
-        result = tools.get_order("  112-1111111-1111111  ")
+        result = tools.get_order("  112-1111111-1111111  ", scope="raj@example.com")
         assert result["order_id"] == "112-1111111-1111111"
 
 
@@ -142,13 +145,13 @@ class TestTrackPackage:
     """track_package returns carrier events."""
 
     def test_track_package_returns_events(self, fresh_store):
-        result = tools.track_package("112-1111111-1111111")
+        result = tools.track_package("112-1111111-1111111", scope="raj@example.com")
         assert "carrier" in result
         assert "events" in result
         assert len(result["events"]) > 0
 
     def test_track_event_has_date_and_detail(self, fresh_store):
-        result = tools.track_package("112-1111111-1111111")
+        result = tools.track_package("112-1111111-1111111", scope="raj@example.com")
         event = result["events"][0]
         assert "date" in event
         assert "detail" in event
@@ -162,7 +165,7 @@ class TestCancelOrder:
     """cancel_order has guardrails tested in test_store.py."""
 
     def test_cancel_order_returns_refund_details(self, fresh_store):
-        result = tools.cancel_order("112-3333333-3333333")
+        result = tools.cancel_order("112-3333333-3333333", scope="mei@example.com", confirmed="yes")
         assert result["cancelled"] is True
         assert "refund_amount" in result
         assert "refund_eta" in result
@@ -172,7 +175,7 @@ class TestStartReturn:
     """start_return has guardrails tested in test_store.py."""
 
     def test_start_return_returns_rma_and_instructions(self, fresh_store):
-        result = tools.start_return("112-1111111-1111111", "broken screen")
+        result = tools.start_return("112-1111111-1111111", "broken screen", scope="raj@example.com", confirmed="yes")
         assert "rma" in result
         assert "instructions" in result
 
@@ -257,10 +260,10 @@ class TestToolArguments:
 
     def test_order_id_is_stripped_of_whitespace(self, fresh_store):
         """Order IDs come in with possible extra spaces."""
-        result = tools.get_order("  112-1111111-1111111  ")
+        result = tools.get_order("  112-1111111-1111111  ", scope="raj@example.com")
         assert "error" not in result
 
     def test_email_is_stripped_and_lowercased(self, fresh_store):
         """Email addresses need normalization."""
-        result = tools.find_orders("  RAJ@EXAMPLE.COM  ")
+        result = tools.find_orders(scope="  RAJ@EXAMPLE.COM  ")
         assert "orders" in result

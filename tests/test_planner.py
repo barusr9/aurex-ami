@@ -95,7 +95,10 @@ def test_react_puts_the_observation_back_into_the_conversation(fake_llm, fresh_s
         Reply(tool_calls=[tool_call("get_order", order_id=DELIVERED, thought="t")]),
         Reply(content="done"),
     )
-    convo, work = ConversationMemory("system"), WorkingMemory()
+    # react threads work.scope into every tool call for data isolation, so the
+    # reader must be authenticated as the order's owner for get_order to return
+    # the order (and not an "authentication required" error).
+    convo, work = ConversationMemory("system"), WorkingMemory(scope="raj@example.com")
 
     planner.react(convo, work, trace=False)
 

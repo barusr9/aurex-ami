@@ -18,11 +18,25 @@ That one change buys three things:
 """
 
 import json
+import time
 
+from ami import observe
 from ami import tools
 from ami.llm import MODEL, complete
+from ami.config import config
 
-MAX_STEPS = 6
+MAX_STEPS = config.MAX_STEPS
+
+# A turn that runs past this many seconds degrades gracefully instead of
+# hanging (e.g. a model that keeps asking for tools, or a slow upstream).
+# 0 disables the budget. See config.TURN_BUDGET_SECONDS.
+TURN_BUDGET_SECONDS = config.TURN_BUDGET_SECONDS
+
+# What the customer hears when we stop early — a runaway loop, a blown time
+# budget, or a model error we chose not to surface raw. Honest and actionable,
+# never a stack trace.
+DEGRADED_REPLY = ("I'm having trouble completing that right now. Let me get a "
+                  "human agent to take a look — they'll follow up shortly.")
 
 PLANNING_RULES = """
 HOW YOU PLAN
@@ -72,7 +86,7 @@ def _schemas_with_thought():
 SCHEMAS = _schemas_with_thought()
 
 
-def react(convo, work, trace=True, steps=None, extra=None):
+def react(convo, work, trace=True, steps=None, extra=None, model=None):
     """Run the ReAct loop until the agent produces an answer for the customer.
 
     convo : ConversationMemory — what was said, sent in full to the model
@@ -80,12 +94,25 @@ def react(convo, work, trace=True, steps=None, extra=None):
     trace : print the Thought/Action/Observation trace to the terminal
     steps : optional list; each step is appended as a dict so a caller
             (the web UI) can render the trace instead of printing it
+    model : which model to use this turn (S6 routing). None = the default
+            MODEL, i.e. unchanged behaviour. The caller picks the tier once
+            per turn (see ami/route.py) and every step uses it.
     """
+    model = model or MODEL
+    t0 = time.perf_counter()
     for step in range(1, MAX_STEPS + 1):
+        # Time budget: stop before another model call if this turn has already
+        # run too long. Checked between steps so we never abandon a call
+        # mid-flight — we just decline to start the next one.
+        if TURN_BUDGET_SECONDS and (time.perf_counter() - t0) > TURN_BUDGET_SECONDS:
+            observe.log("degraded", reason="turn_budget_exceeded",
+                        budget_s=TURN_BUDGET_SECONDS, step=step)
+            return DEGRADED_REPLY
+
         # Working memory is re-read before EVERY step, so the agent plans
         # against what it has already established, not just the transcript.
         response = complete(convo.messages(extra_system=work.brief()),
-                            tools=SCHEMAS)
+                            tools=SCHEMAS, model=model)
         message = response.choices[0].message
         convo.add_assistant(message.model_dump(exclude_none=True))
 
