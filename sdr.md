@@ -27,11 +27,18 @@ grounded in a baseline taken 2026-10-06 from the live `/logs` trace.
 | S5 | 5 | Trustworthy to users | No (human study) |
 | S6 | 6 | Right model for each job | Yes |
 
-> **Foundation — S0 (eval integrity).** S1, S2, S3, S6 all need a working
-> eval harness to prove "same quality / before-and-after." It is currently
-> broken (`evals.py` crashed 0/20 on an API-drift bug; 46 unit tests stale).
-> The harness is being repaired in this branch; finishing it is the
-> prerequisite for the items marked "needs evals" above.
+> **Foundation — S0 (eval integrity) — DONE.** S1, S2, S3, S6 all need a
+> working eval harness to prove "same quality / before-and-after." It was
+> broken (`evals.py` crashed 0/20 on API drift; 46 unit tests stale); it is
+> now repaired in this branch — evals run end-to-end and the unit suite is
+> 292/0. This unblocks the fourth readout number (golden-set score).
+>
+> **Tasks (S0):**
+> - [x] Fix `evals.py` planner/scope/spy drift — harness runs
+> - [x] Retry transient 5xx (502/503/504) in `llm.py`
+> - [x] Fix all 46 stale unit tests → 292 passed / 0 failed
+> - [x] Document run process in README (`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`)
+> - [ ] Record a committed eval baseline to `results/` (the "before" score)
 
 ---
 
@@ -58,8 +65,15 @@ time before and after.
 |---|---|
 | Cost / turn | **< 50% of baseline** ($0.0106 → < $0.0053) |
 | Turn latency p50 | improves vs. baseline |
-| Quality | no eval-pass-rate regression |
+| Quality | no golden-set score regression |
 | Proof | before/after cost + latency shown in `/logs` |
+
+**Tasks**
+- [ ] Probe whether the proxy honors prompt caching (no-code measurement)
+- [ ] If yes: add `cache_control` on the stable prefix; measure cost drop
+- [ ] Record before/after cost + p50 on the frozen suite
+- [ ] (If needed) trim/cap history — only after S0 proves no score regression
+- [ ] Capture one reverted attempt with numbers (feeds readout §5)
 
 ---
 
@@ -80,6 +94,12 @@ purpose and show the monitor catches it.
 | Alert | threshold breach surfaces on `/logs` or is logged as a distinct event |
 | Proof-by-breakage | deliberately degrade the agent (e.g. swap a weaker model / corrupt a prompt) → monitor flags it |
 
+**Tasks**
+- [ ] Define the quality metric (reuse S0 eval pass rate / a canary subset)
+- [ ] Add a threshold check → distinct `alert` event in `observe.py`
+- [ ] Surface the alert on `/logs`
+- [ ] Break-on-purpose demo: degrade the agent, show the monitor catches it
+
 ---
 
 ## S3 — Learn from complaints (BRD #3)
@@ -98,6 +118,13 @@ and show before/after on those 10.
 | Corpus | 10 real bad answers encoded as eval/golden cases |
 | Fix | each of the 10 addressed in prompt/tool/policy |
 | Proof | before (fails) → after (passes) shown for all 10, via the eval harness |
+
+**Tasks**
+- [ ] Pull 10 real complaints/bad answers (from `/feedback` or authored)
+- [ ] Encode each as a golden/eval case that fails today
+- [ ] Fix each in prompt/tool/policy
+- [ ] Show before(fail)→after(pass) for all 10 via the harness
+- [ ] Mark these as "added this weekend, frozen `<date>`" (readout rule 1)
 
 ---
 
@@ -119,6 +146,14 @@ user sees — no crashes, no confident wrong answers.
 | A tool errors | clean refusal, no confident wrong claim |
 | (all) | per-turn budget enforced; each path has a fault-injection test |
 
+**Tasks**
+- [x] Retry transient gateway 5xx in `llm.py` (done in R6)
+- [ ] Graceful fallback on non-retryable model error/timeout (offer escalate)
+- [ ] Handle knowledge store down → honest "can't look that up", no invention
+- [ ] Enforce a per-turn time/step budget; log overflow as a distinct event
+- [ ] Fault-injection test per dependency (model, search, tool)
+- [ ] Capture before/after failure screenshots (feeds readout §4 / presentation)
+
 ---
 
 ## S5 — Make it trustworthy to users (BRD #5)
@@ -137,6 +172,12 @@ moment, test again.
 | Study | 3 participants, real tasks, trust-break moments logged |
 | Redesign | each identified moment changed (copy, confirmation, latency, transparency) |
 | Re-test | the same moment no longer breaks trust on a second pass |
+
+**Tasks**
+- [ ] Recruit 3 participants; define the real tasks they'll attempt
+- [ ] Run sessions; log the moment each stopped trusting it
+- [ ] Redesign each trust-break moment
+- [ ] Re-test: confirm the moment no longer breaks trust
 
 ---
 
@@ -158,23 +199,81 @@ against quality.
 | Safety | guardrail cases stay on the strong model |
 | Form | config-driven thresholds, not hardcoded |
 
+**Tasks**
+- [ ] Extend `query_classifier.py` with a difficulty signal (simple vs. complex)
+- [ ] Route simple/PUBLIC → cheap tier; complex/multi-tool/guardrail → strong
+- [ ] Log the model choice per turn in the trace
+- [ ] Measure blended $/turn + golden-set score vs. single-model baseline
+- [ ] Move thresholds into `config.py`/env
+- [ ] Strong candidate for readout §5: if routing drops score, revert + report
+
 ---
 
 ## Supporting work (not a BRD item, but required)
 
-| Item | Why | Satisfied when |
+| Item | Why | Status |
 |---|---|---|
-| **Eval integrity (S0)** | Measuring stick for S1/S2/S3/S6 | `evals.py` runs green; baseline in `results/`; 46 stale unit tests fixed; run docs incl. `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1` |
-| **Config hygiene** | S1/S4/S6 knobs must be tunable | `MODEL`, `MAX_STEPS`, per-turn budget, routing thresholds read from `config.py`/env |
+| **Eval integrity (S0)** | Measuring stick for S1/S2/S3/S6 | **Mostly done** — evals run; unit suite 292/0; run docs added. Remaining: commit a baseline to `results/` |
+| **Config hygiene** | S1/S4/S6 knobs must be tunable | Open — `MODEL`, `MAX_STEPS`, per-turn budget, routing thresholds should read from `config.py`/env |
 
 ## Dependency order
 
 | Step | Item | Why now |
 |---|---|---|
-| 1 | Eval integrity (S0) | Nothing's "same quality" / "before-after" is provable without it |
-| 2 | S1 (cost) | Biggest win; caching can start in parallel (billing-only) |
+| 1 | Eval integrity (S0) ✅ | Nothing's "same quality" / "before-after" is provable without it — **done** |
+| 2 | S1 (cost) ← next | Biggest win; caching can start in parallel (billing-only) |
 | 3 | S6 (routing) | Needs S1's clean baseline |
 | 4 | S3 (complaints→tests) | Builds on the working eval harness |
 | 5 | S2 (regression monitor) | Reuses the eval signal from S0/S3 |
 | 6 | S4 (graceful) | Independent; slot anytime |
 | 7 | S5 (trust study) | Human study; after behavior stabilizes |
+
+---
+
+## Output Expected (L4 Readout deliverables)
+
+The project is graded as a **production-readiness review, not a demo** — the
+same frozen suite, measured before and after, witnessed, including the change
+that did not work. Concretely, we must produce:
+
+**1. `READOUT.md` — a one-page the reviewer can act on**, with six parts:
+
+| # | Part | Content |
+|---|---|---|
+| 1 | The system, on the eight layers | one line per layer; mark the layers changed this weekend |
+| 2 | The project | `S<n> · <title>` — the gap it closes, in one sentence |
+| 3 | Before & after | same frozen suite (`<N>` cases, frozen `<date>`); the table below |
+| 4 | What moved, by kind of case | which case types got better, worse, or did not move |
+| 5 | What did NOT work | at least one change tried and reverted, **with its numbers** |
+| 6 | What you'd watch in production | the metric, the threshold, and who gets paged |
+
+**2. The four numbers — before and after, on the same frozen suite:**
+
+| Metric | Baseline (before) | After | Rule |
+|---|---|---|---|
+| Cost per run (¢) | 1.06¢/turn | _tbd_ | — |
+| p50 latency (ms) | 4,960 | _tbd_ | — |
+| p95 latency (ms) | 5,480 | _tbd_ | — |
+| Golden-set score | _tbd (R6 now makes this measurable)_ | _tbd_ | hiding a number that got worse fails the readout outright |
+
+Plus the two supporting rows from the readout table: **users at SLO break**,
+and a **failure screenshot** (before/after links).
+
+**3. At least one reverted change (§5 is mandatory).** Keep a change we tried
+that made a number worse, revert it, and report it with its numbers — e.g.
+"routing simple turns to the cheap tier cut cost X% but dropped golden-set
+score Y points, so we reverted it." A weekend where every change worked is a
+weekend where somebody stopped measuring.
+
+**4. Witnessed.** A pair watches the after-run happen and signs the report —
+evidence the numbers came from the system, today.
+
+**5. The five-minute presentation, in order:** gap (30s) → change (1m) →
+table (2m, read the row that got *worse* out loud) → failure (1m) → watch
+(30s).
+
+> Mapping to our work: S1 fills the cost + latency rows; **R6 (done) makes the
+> golden-set *score* row measurable** — it is the fourth number, not optional;
+> S2 is the "what you'd watch in production" metric + alert; S3 grows the
+> frozen suite from real complaints; S4 produces the failure screenshots; S6
+> is a prime candidate for the mandatory §5 reverted change.
