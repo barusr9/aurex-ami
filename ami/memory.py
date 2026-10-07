@@ -26,9 +26,16 @@ from collections import OrderedDict
 class ConversationMemory:
     """The dialogue transcript, in the shape the model expects."""
 
-    def __init__(self, system_prompt, max_turns=40):
+    def __init__(self, system_prompt, max_turns=None):
         self.system = system_prompt
         self.history = []          # everything after the system message
+        # How many trailing messages to resend. Lower = cheaper (fewer input
+        # tokens on long conversations) at the cost of forgetting older turns.
+        # Defaults to config.MAX_CONVERSATION_TURNS so it is tunable in one
+        # place rather than hardcoded here. See S1 (cost).
+        if max_turns is None:
+            from ami.config import config
+            max_turns = config.MAX_CONVERSATION_TURNS
         self.max_turns = max_turns
 
     def add_user(self, text):
@@ -75,7 +82,8 @@ class ConversationMemory:
 
     @classmethod
     def from_dict(cls, system_prompt, data):
-        m = cls(system_prompt, max_turns=data.get("max_turns", 40))
+        # None -> fall back to config default (see __init__).
+        m = cls(system_prompt, max_turns=data.get("max_turns"))
         m.history = data.get("history", [])
         return m
 
