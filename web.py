@@ -22,6 +22,7 @@ from ami import dashboard
 from ami import observe
 from ami import planner
 from ami import policy
+from ami import route
 from ami.config import config
 from ami.llm import MODEL
 from ami.memory import ConversationMemory, LongTermMemory, WorkingMemory
@@ -503,7 +504,13 @@ class Handler(BaseHTTPRequestHandler):
                         if note:
                             convo_system += f"\n\n{note}"
 
-                        reply = planner.react(convo, work, trace=False, steps=steps)
+                        # S6: pick the model tier for this turn from the
+                        # query's difficulty (cheap for simple PUBLIC, strong
+                        # for PRIVATE/account work). No-op unless MODEL_CHEAP
+                        # is configured.
+                        turn_model = route.pick_model(text, query_type)
+                        reply = planner.react(convo, work, trace=False,
+                                              steps=steps, model=turn_model)
 
                         # Policy: output check
                         reply = policy.check_output(reply, work, text)
