@@ -3,8 +3,17 @@
 A production-readiness review, not a demo. Same frozen suite, measured
 before and after, including the change that did not work.
 
-Frozen golden suite: 20 behavioural eval cases, frozen 2026-10-06
-(`evals.py` CASES). 10 complaint cases added this weekend, frozen 2026-10-07.
+Frozen suite: 20 **behavioural** eval cases (`evals.py` CASES) — these grade
+what the agent *did* (right tool, correct refusal), frozen 2026-10-06. 10
+complaint cases added this weekend, frozen 2026-10-07.
+
+> **Note on "golden-set score".** The repo has a *second* suite, `golden.json`
+> (28 cases), graded by `golden.py`, which scores what the agent *said* against
+> a reference answer (facts + an LLM judge). The scores below are the
+> **behavioural** evals, not the golden suite — `golden.py` has not been run
+> (it's ready; it reuses the fixed runner, but a run costs even more tokens
+> because of the judge, and the API key's token budget is exhausted). A true
+> golden-set score is a pending measurement, queued for when the key resets.
 
 ---
 
@@ -38,7 +47,8 @@ after = post-changes):
 | cost per run (¢)   | 0.89¢   | 1.05¢ · **0.67¢ projected w/ routing** | +18% is cache noise (see note); −25% achievable (§4) |
 | p50 latency (ms)   | 5,912   | 7,083   | +20% — cache noise, not code |
 | p95 latency (ms)   | 17,897  | 15,217  | −15% — within run-to-run variance |
-| golden-set score   | 15/20 (75%) | 15/20 (75%) | **flat — no regression** ✅ |
+| behavioural score  | 15/20 (75%) | 15/20 (75%) | **flat — no regression** ✅ |
+| golden-set score   | not yet run | not yet run | pending (budget; see note above) |
 | users at SLO break | n/a (single-tenant demo) | n/a | — |
 | failure screenshot | `/logs` 401 dead-end | login→dashboard | see §4 |
 
