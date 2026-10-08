@@ -13,6 +13,22 @@ from ami.auth import (
 SECRET_KEY = "test-secret-key-12345"
 
 
+
+def _tamper(token):
+    """Corrupt the signature in a way that ALWAYS changes its bytes.
+
+    The old tests flipped the token's LAST character. That is the final
+    base64url char of the HMAC, which carries only 4 significant bits — so
+    whenever the real signature ended in w/x/y/z, swapping it for x/y decoded
+    to the identical signature and the "tampered" token validated: a ~6% flake.
+    Flipping a character in the MIDDLE of the signature changes a full 6 bits
+    that are all significant.
+    """
+    head, payload, sig = token.split(".")
+    i = len(sig) // 2
+    sig = sig[:i] + ("A" if sig[i] != "A" else "B") + sig[i + 1:]
+    return f"{head}.{payload}.{sig}"
+
 class TestTokenGeneration:
     """Test token generation."""
 
@@ -73,8 +89,7 @@ class TestTokenValidation:
     def test_validate_token_tampered(self):
         """Tampered token fails validation."""
         token = generate_token("user_123", secret_key=SECRET_KEY)
-        # Modify token (last char)
-        tampered = token[:-1] + ("x" if token[-1] != "x" else "y")
+        tampered = _tamper(token)
 
         with pytest.raises(AuthError, match="invalid"):
             validate_token(tampered, secret_key=SECRET_KEY)
@@ -175,7 +190,7 @@ class TestFullAuthentication:
     def test_authenticate_request_tampered_token(self):
         """Tampered token fails."""
         token = generate_token("user_123", secret_key=SECRET_KEY)
-        tampered = token[:-1] + ("x" if token[-1] != "x" else "y")
+        tampered = _tamper(token)
         header = f"Bearer {tampered}"
 
         with pytest.raises(AuthError):
