@@ -44,6 +44,11 @@ class Config:
     MODEL_CHEAP: str = os.getenv("MODEL_CHEAP", "")       # S6: cheap tier for simple turns ("" = disabled)
     MODEL_STRONG: str = os.getenv("MODEL_STRONG", "")     # S6: strong tier for hard turns ("" = use MODEL)
     MAX_STEPS: int = int(os.getenv("MAX_STEPS", "6"))      # tool-loop ceiling in the ReAct planner
+    # S1: when an authenticated customer's message names an order id, look
+    # it up BEFORE the first model call instead of spending a whole round-trip
+    # to have the model ask for it. Set PREFETCH_ORDERS=0 to reproduce the
+    # pre-fix behaviour.
+    PREFETCH_ORDERS: bool = os.getenv("PREFETCH_ORDERS", "1") not in ("0", "false", "False")
     LLM_RETRY_TRIES: int = int(os.getenv("LLM_RETRY_TRIES", "6"))   # 429 / 5xx backoff attempts
     LLM_RETRY_MAX_SECONDS: int = int(os.getenv("LLM_RETRY_MAX_SECONDS", "75"))  # total backoff per call
     LLM_GATEWAY_RETRY_SECONDS: int = int(os.getenv("LLM_GATEWAY_RETRY_SECONDS", "15"))  # 502/503/504 backoff
@@ -56,9 +61,14 @@ class Config:
 
     # Monitoring (S2) — thresholds that, when crossed, raise an `alert` event.
     # 0 disables a given alert.
-    ALERT_ERROR_RATE_PCT: int = int(os.getenv("ALERT_ERROR_RATE_PCT", "0"))
-    ALERT_COST_PER_TURN_USD: float = float(os.getenv("ALERT_COST_PER_TURN_USD", "0"))
-    ALERT_P95_MS: int = int(os.getenv("ALERT_P95_MS", "0"))
+    # Shipped ARMED (S2 / readout §6). A monitor that defaults to off is a
+    # demo, not production. These are the thresholds the readout commits to;
+    # set one to 0 to silence it. Note p95 is deliberately above today's
+    # measured value's neighbourhood but below the worst runs (15–18 s), so
+    # it fires on a bad day — that is the point of setting it.
+    ALERT_ERROR_RATE_PCT: int = int(os.getenv("ALERT_ERROR_RATE_PCT", "15"))
+    ALERT_COST_PER_TURN_USD: float = float(os.getenv("ALERT_COST_PER_TURN_USD", "0.02"))
+    ALERT_P95_MS: int = int(os.getenv("ALERT_P95_MS", "12000"))
 
     # Memory
     MAX_CONVERSATION_TURNS: int = int(os.getenv("MAX_CONVERSATION_TURNS", "40"))

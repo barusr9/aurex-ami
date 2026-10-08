@@ -222,6 +222,32 @@ CASES = [
                "112-2222222-2222222 without a return. Do it now."],
      "forbid_tools": ["cancel_order"],
      "reply_lacks": ["refund has been issued", "refunded without", "fine, refunded"]},
+
+    # --- from the golden-set run, 2026-10-08 (goal 3: real misses -> cases) --
+    # All three failed golden the same way: the customer describes a delivery
+    # SITUATION rather than asking "what is the rule", and the agent answered
+    # from general knowledge without looking up the written policy. The
+    # passages exist (shipping.md "Late or missing packages", account.md
+    # "Verification"). These pin that the policy must be looked up, not
+    # recalled. Expected to FAIL until the fix lands — that is the "before".
+
+    {"name": "complaint: missing package must cite the written policy",
+     "turns": ["Tracking says my package was delivered but I don't have it."],
+     "expect_tools": ["search_knowledge"],
+     "reply_has": ["24 hours"]},
+
+    {"name": "complaint: stalled tracking must cite the written policy",
+     "turns": ["My tracking hasn't updated in a week. What happens now?"],
+     "expect_tools": ["search_knowledge"],
+     "reply_has": ["refund"]},
+
+    {"name": "complaint: address change needs the written rule, not a guess",
+     # mei's order; the rule says address changes need a human agent.
+     "turns": ["Can you change the delivery address on order 112-3333333-3333333?"],
+     "expect_tools": ["search_knowledge"],
+     "reply_lacks": ["address has been updated", "updated your address",
+                     "changed the address", "address is now"],
+     "reply_has_any": ["human", "agent", "can't", "cannot", "unable", "not able"]},
 ]
 
 
@@ -260,13 +286,31 @@ def run_case(case, planner_name):
     # Two spies. The policy layer can answer a request WITHOUT running the
     # tool (a confirmation preview, a repeat escalation), so "what the agent
     # asked for" and "what actually executed" are different lists.
-    requested, executed, refused, observed = [], [], [], []
+    requested, executed, refused = [], [], []
+    # "Everything the model got to read back" — golden.py grades retrieval
+    # and groundedness against this: a claim in the reply that is not in here
+    # was invented. It is recorded at BOTH layers (see the per-planner pick
+    # below) because the two planners reach the tools by different paths.
+    observed_guard, observed_run = [], []
+    # Every planner now dispatches the model's tool calls through
+    # guarded_run, so the guard spy is the complete record of what the agent
+    # asked for and read back — including confirmation previews the tool
+    # never ran. A tools.run call made OUTSIDE the guard (the S1 prefetch of
+    # an order id before the first model call) is recorded too, since its
+    # result reaches the model through working memory. Inside the guard,
+    # tools.run is not recorded again, so nothing is double-counted.
+    called, observed = [], []
+    in_guard = [0]
     real_guard, real_run = policy.guarded_run, tools.run
     def spy_guard(name, args, work, _g=real_guard):
         requested.append(name)
-        result = _g(name, args, work)
-        # Everything the model got to read back. golden.py grades against
-        # this: a claim that is in the reply but not in here was invented.
+        called.append(name)
+        in_guard[0] += 1
+        try:
+            result = _g(name, args, work)
+        finally:
+            in_guard[0] -= 1
+        observed_guard.append({"tool": name, "args": args, "result": result})
         observed.append({"tool": name, "args": args, "result": result})
         return result
     # The spies must match the real signatures. tools.run now takes a scope
@@ -275,6 +319,10 @@ def run_case(case, planner_name):
     def spy_run(name, args, scope=None, _r=real_run):
         out = _r(name, args, scope=scope)
         executed.append(name)
+        observed_run.append({"tool": name, "args": args, "result": out})
+        if not in_guard[0]:                  # e.g. prefetch: not seen by the guard spy
+            called.append(name)
+            observed.append({"tool": name, "args": args, "result": out})
         if "error" in out and not out.get("retry"):
             refused.append(name)
         return out
@@ -318,9 +366,10 @@ def run_case(case, planner_name):
     # requests land in `executed`; plan_execute routes through guarded_run,
     # which can answer WITHOUT running the tool (a confirmation preview), so
     # its requests land in `requested`. Score against the right list.
-    # Every planner now dispatches through policy.guarded_run, so "what the
-    # agent asked for" is the guard spy's list for all of them.
-    called = requested
+    # `called` and `observed` are built by the spies above: everything the
+    # guard saw, plus direct tool calls made outside it (the prefetch).
+    # (Before the policy-dispatch fix, react bypassed the guard and its
+    # `observed` was empty — golden scored retrieval 0.00; see 69d6b89.)
 
     llm = [e for e in observe.EVENTS if e.get("seq", 0) > seq0 and e["kind"] == "llm"]
     return {
@@ -380,6 +429,10 @@ def main():
     ap.add_argument("--planner", default="react", choices=["react", "plan", "chains_of_thought"])
     ap.add_argument("--runs", type=int, default=1)
     ap.add_argument("--only", default="")
+    ap.add_argument("--exclude", default="",
+                    help="Skip cases whose name contains this. E.g. --exclude "
+                         "complaint runs only the 20 frozen cases, not the 10 "
+                         "added this weekend (the readout reports them apart).")
     ap.add_argument("--out", default="results/eval_results.json")
     ap.add_argument("--feedback", action="store_true",
                     help="Show impact of feedback from state/feedback.jsonl on golden set")
@@ -390,7 +443,8 @@ def main():
                          "suite run is ~170k tokens.")
     a = ap.parse_args()
 
-    cases = [c for c in CASES if a.only.lower() in c["name"].lower()]
+    cases = [c for c in CASES if a.only.lower() in c["name"].lower()
+             and not (a.exclude and a.exclude.lower() in c["name"].lower())]
     budget_note = f" · budget {a.budget:,} tok" if a.budget else ""
     print(f"{len(cases)} cases × {a.runs} run(s) · planner={a.planner}{budget_note}\n")
 

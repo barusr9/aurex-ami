@@ -18,6 +18,7 @@ That one change buys three things:
 """
 
 import json
+import re
 import time
 
 from ami import observe
@@ -38,6 +39,46 @@ TURN_BUDGET_SECONDS = config.TURN_BUDGET_SECONDS
 # never a stack trace.
 DEGRADED_REPLY = ("I'm having trouble completing that right now. Let me get a "
                   "human agent to take a look — they'll follow up shortly.")
+
+# --------------------------------------------------------------------------
+# S1: prefetch — the one model call that never needed a model
+# --------------------------------------------------------------------------
+# On the frozen suite, 13 of 20 cases open the same way: the customer types
+# an order number and the model spends a full round-trip (~1,700 input
+# tokens, ~1.6 s) deciding to call get_order with it. That decision is
+# deterministic, so we make it in Python: look the order up before the first
+# model call and hand the result to working memory, whose brief already tells
+# the model "you know this, do not look it up again". Same tool, same scope
+# check, so data isolation is unchanged; an order the user may not see lands
+# in work.failures exactly as it would have after the model asked.
+
+PREFETCH_ORDERS = config.PREFETCH_ORDERS
+_ORDER_ID = re.compile(r"\b\d{3}-\d{7}-\d{7}\b")
+
+
+def prefetch_orders(convo, work):
+    """Look up any order ids in the latest user message, if authenticated.
+
+    Returns the ids fetched (for logging/tests). Does nothing when the user is
+    not authenticated — the auth gate is the tool's, not ours to bypass — or
+    when the id is already in working memory.
+    """
+    scope = getattr(work, "scope", None)
+    if not PREFETCH_ORDERS or not scope or not convo.history:
+        return []
+    last = convo.history[-1]
+    if last.get("role") != "user":
+        return []
+    fetched = []
+    for oid in dict.fromkeys(_ORDER_ID.findall(last.get("content") or "")):
+        if oid in work.orders:
+            continue                              # brief already carries it
+        result = tools.run("get_order", {"order_id": oid}, scope=scope)
+        work.record("get_order", {"order_id": oid}, result)
+        observe.log("prefetch", tool="get_order", order_id=oid,
+                    ok="error" not in result)
+        fetched.append(oid)
+    return fetched
 
 PLANNING_RULES = """
 HOW YOU PLAN
@@ -105,6 +146,7 @@ def react(convo, work, trace=True, steps=None, extra=None, model=None,
         if past:
             extra = "\n\n".join(filter(None, [
                 extra, f"LONG-TERM CONTEXT ABOUT THIS CUSTOMER:\n{past}"]))
+    prefetch_orders(convo, work)          # S1: saves the first round-trip
     for step in range(1, MAX_STEPS + 1):
         # Time budget: stop before another model call if this turn has already
         # run too long. Checked between steps so we never abandon a call

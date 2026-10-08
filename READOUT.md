@@ -10,6 +10,8 @@ before and after, including the change that did not work.
 
 "Before" = commit `cd098e0` (baseline). "After" = commit `858e9aa` (branch `fix/s1-and-eval-failures`). All runs: `gpt-5.6-terra` via the class proxy, 2026-10-08.
 
+> **Merge note (2026-10-08):** this branch was then merged with `master` at `1b04d45` (Bhargava's S1 order prefetch, armed S2 alert defaults, evals `--exclude`, harness fix `69d6b89`). The numbers below were measured **before** that merge; the witnessed run on the merged branch (`../tools/phase4_runs.sh`) is the final measurement and replaces them.
+
 ---
 
 ## 1. The system, on the eight layers
