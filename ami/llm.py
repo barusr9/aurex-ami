@@ -7,6 +7,7 @@ the class LLM proxy, which speaks the OpenAI chat-completions API.
 import os
 import socket
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 
 from dotenv import load_dotenv
 from openai import OpenAI, RateLimitError, APIStatusError
@@ -58,6 +59,26 @@ _client = OpenAI(
 
 RATE_LIMIT_TRIES = config.LLM_RETRY_TRIES
 
+
+class ModelTimeout(Exception):
+    """A model call ran past LLM_TIMEOUT_SECONDS in total."""
+
+
+# The SDK's timeout is per READ, not per request: a connection the gateway
+# accepts but never answers kept a turn blocked in an SSL read for 15+
+# minutes (observed 2026-10-08, stack: _ssl__SSLSocket_read -> poll). So the
+# call runs on a worker thread and we stop waiting after the total budget.
+# A stuck worker finishes or dies on its own; the turn moves on.
+_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="llm")
+
+
+def _create(kwargs):
+    future = _pool.submit(lambda: _client.chat.completions.create(**kwargs))
+    try:
+        return future.result(timeout=config.LLM_TIMEOUT_SECONDS)
+    except FutureTimeout:
+        raise ModelTimeout(f"no response in {config.LLM_TIMEOUT_SECONDS}s") from None
+
 # A gateway hiccup (502/503/504) is the proxy or its origin being briefly
 # unreachable, not our request being wrong. Like a 429 it clears on its own,
 # so it is a wait, not a failure — otherwise one transient 502 kills a whole
@@ -80,9 +101,18 @@ def _call(kwargs):
     # rejecting this exact request (the injection eval case gets a 502 every
     # run) and will not clear — waiting 75 s for it only inflated p95.
     gateway_deadline = time.monotonic() + config.LLM_GATEWAY_RETRY_SECONDS
+    timed_out = False
     for attempt in range(RATE_LIMIT_TRIES):
         try:
-            return _client.chat.completions.create(**kwargs)
+            return _create(kwargs)
+        except ModelTimeout as e:
+            # One retry on a fresh connection (the stuck one stays busy in
+            # its thread); a second stall means the gateway is in trouble.
+            if timed_out:
+                raise
+            timed_out = True
+            observe.log("llm", model=kwargs.get("model"), ms=0,
+                        error=f"{e}, retrying once")
         except RateLimitError as e:
             # Two different things arrive as a 429, and only one is worth
             # waiting out. "Slow down" clears in under a minute. "This
