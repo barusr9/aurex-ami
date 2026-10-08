@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
 from ami import agent_profile as profile
+from ami import answer_cache
 from ami import dashboard
 from ami import observe
 from ami import planner
@@ -510,9 +511,16 @@ class Handler(BaseHTTPRequestHandler):
                         # for PRIVATE/account work). No-op unless MODEL_CHEAP
                         # is configured.
                         turn_model = route.pick_model(text, query_type)
-                        reply = planner.react(convo, work, trace=False,
+
+                        # S1 answer cache: a repeated general first question
+                        # is answered from the cache with no model call.
+                        def run_planner():
+                            r = planner.react(convo, work, trace=False,
                                               steps=steps, model=turn_model,
                                               extra=note, longterm=LONGTERM)
+                            return r, [s["tool"] for s in steps]
+                        reply, _from_cache = answer_cache.answer(
+                            text, query_type, convo, work, run_planner)
 
                         # Policy: output check
                         reply = policy.check_output(reply, work, text,
