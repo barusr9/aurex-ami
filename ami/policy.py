@@ -74,9 +74,13 @@ def guarded_run(name, args, work):
     confirmation = args.pop("confirmed", None)
     # Confirmation must be an explicit string ("yes" or "confirm"), not just a boolean flag
     confirmed = confirmation in ("yes", "confirm")
-    # Who is asking comes from the session (working memory), never from the
-    # model. Without it every order tool answers "Authentication required".
-    scope = args.pop("scope", None) or getattr(work, "scope", None)
+    # Who is asking comes from the session (working memory), NEVER from the
+    # model. The model writes its own tool-call arguments, so a scope it
+    # supplies is untrusted: drop it unconditionally and use the session's.
+    # (Consulting args first let an injected `scope` read another customer's
+    # order — caught in review; see tests/test_policy_scope.py.)
+    args.pop("scope", None)
+    scope = getattr(work, "scope", None)
 
     # Rule: one escalation per conversation. The tool cannot know this —
     # only working memory does.
