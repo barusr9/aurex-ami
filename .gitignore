@@ -19,6 +19,7 @@ results/*
 !results/complaints.json
 !results/s6_routing_simulation.json
 !results/after_react.json
+!results/golden_baseline.json
 
 # OS / editor
 .DS_Store
