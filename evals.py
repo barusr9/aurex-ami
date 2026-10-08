@@ -266,6 +266,13 @@ def _scope_for(case, store):
     for oid, order in store.ORDERS.items():
         if oid in text:
             return order["email"]
+    # No order id, but the customer names their own email ("my email is
+    # raj@example.com"): log in as that customer. Without this, find-by-email
+    # cases ran as demo1 and the agent correctly refused raj's orders.
+    owners = {o["email"].lower() for o in store.ORDERS.values()}
+    for word in text.replace(",", " ").split():
+        if word.lower().strip(".?!") in owners:
+            return word.lower().strip(".?!")
     # Cases that name no order (policy/rag/out-of-scope) — any authenticated
     # identity works; use the first seed owner for determinism.
     return next(iter(store.ORDERS.values()))["email"]
@@ -285,11 +292,26 @@ def run_case(case, planner_name):
     # was invented. It is recorded at BOTH layers (see the per-planner pick
     # below) because the two planners reach the tools by different paths.
     observed_guard, observed_run = [], []
+    # Every planner now dispatches the model's tool calls through
+    # guarded_run, so the guard spy is the complete record of what the agent
+    # asked for and read back — including confirmation previews the tool
+    # never ran. A tools.run call made OUTSIDE the guard (the S1 prefetch of
+    # an order id before the first model call) is recorded too, since its
+    # result reaches the model through working memory. Inside the guard,
+    # tools.run is not recorded again, so nothing is double-counted.
+    called, observed = [], []
+    in_guard = [0]
     real_guard, real_run = policy.guarded_run, tools.run
     def spy_guard(name, args, work, _g=real_guard):
         requested.append(name)
-        result = _g(name, args, work)
+        called.append(name)
+        in_guard[0] += 1
+        try:
+            result = _g(name, args, work)
+        finally:
+            in_guard[0] -= 1
         observed_guard.append({"tool": name, "args": args, "result": result})
+        observed.append({"tool": name, "args": args, "result": result})
         return result
     # The spies must match the real signatures. tools.run now takes a scope
     # kwarg (data isolation), so the stand-in has to accept and forward it or
@@ -298,6 +320,9 @@ def run_case(case, planner_name):
         out = _r(name, args, scope=scope)
         executed.append(name)
         observed_run.append({"tool": name, "args": args, "result": out})
+        if not in_guard[0]:                  # e.g. prefetch: not seen by the guard spy
+            called.append(name)
+            observed.append({"tool": name, "args": args, "result": out})
         if "error" in out and not out.get("retry"):
             refused.append(name)
         return out
@@ -325,9 +350,9 @@ def run_case(case, planner_name):
             # The two planners take different arguments: plan_execute threads a
             # longterm store and the policy note through; react reads working
             # memory directly and takes neither. Pass each only what it accepts.
-            kwargs = {"trace": False}
-            if planner_name == "plan":
-                kwargs["longterm"], kwargs["extra"] = longterm, note
+            kwargs = {"trace": False, "extra": note}
+            if planner_name in ("plan", "react"):
+                kwargs["longterm"] = longterm
             with contextlib.redirect_stdout(io.StringIO()):
                 reply = run(convo, work, **kwargs)
             reply = policy.check_output(reply, work, text)
@@ -341,15 +366,10 @@ def run_case(case, planner_name):
     # requests land in `executed`; plan_execute routes through guarded_run,
     # which can answer WITHOUT running the tool (a confirmation preview), so
     # its requests land in `requested`. Score against the right list.
-    called = executed if planner_name in ("react", "chains_of_thought") else requested
-    # Same split for what the model read back. react's tool results only ever
-    # pass through tools.run; plan_execute's pass through guarded_run, which
-    # can answer WITHOUT running the tool (a confirmation preview) — so for
-    # plan the guard layer is the complete record, and using both would
-    # double-count. Before this, react's `observed` was always empty and
-    # golden.py scored retrieval 0.00 on every row while the trace showed 19
-    # real search_knowledge calls — a grader bug, not an agent result.
-    observed = observed_run if planner_name in ("react", "chains_of_thought") else observed_guard
+    # `called` and `observed` are built by the spies above: everything the
+    # guard saw, plus direct tool calls made outside it (the prefetch).
+    # (Before the policy-dispatch fix, react bypassed the guard and its
+    # `observed` was empty — golden scored retrieval 0.00; see 69d6b89.)
 
     llm = [e for e in observe.EVENTS if e.get("seq", 0) > seq0 and e["kind"] == "llm"]
     return {

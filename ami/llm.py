@@ -5,7 +5,9 @@ the class LLM proxy, which speaks the OpenAI chat-completions API.
 """
 
 import os
+import socket
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 
 from dotenv import load_dotenv
 from openai import OpenAI, RateLimitError, APIStatusError
@@ -20,13 +22,62 @@ load_dotenv()
 # vars they read still work exactly as before.
 MODEL = config.MODEL
 
+
+def _prefer_ipv4():
+    """Opt-in (LLM_FORCE_IPV4=1): resolve to IPv4 when an IPv4 address exists.
+
+    On a network where IPv6 to the proxy is black-holed, every NEW connection
+    spent ~150 s timing out two IPv6 addresses before falling back to IPv4
+    (measured: curl -6 cannot connect; IPv4 connects in 0.01 s; a request
+    took 151 s by default and 1.2 s with IPv4-only resolution). Binding a
+    local IPv4 address did not help — httpx still tried IPv6 — so the fix is
+    at name resolution. Hosts with only IPv6 addresses are left untouched.
+    """
+    original = socket.getaddrinfo
+
+    def ipv4_first(host, *args, **kwargs):
+        found = original(host, *args, **kwargs)
+        v4 = [a for a in found if a[0] == socket.AF_INET]
+        return v4 or found
+
+    socket.getaddrinfo = ipv4_first
+
+
+if config.LLM_FORCE_IPV4:
+    _prefer_ipv4()
+
+# max_retries=0: the SDK otherwise retries 5xx twice on its own, silently,
+# INSIDE each of our attempts below — so 6 attempts became 18 requests and
+# one bad payload held an eval case for ~14 minutes. Retries live in _call().
 _client = OpenAI(
     api_key=os.environ["OPENAI_API_KEY"],
     base_url=os.environ["OPENAI_BASE_URL"],
+    timeout=config.LLM_TIMEOUT_SECONDS,
+    max_retries=0,
 )
 
 
 RATE_LIMIT_TRIES = config.LLM_RETRY_TRIES
+
+
+class ModelTimeout(Exception):
+    """A model call ran past LLM_TIMEOUT_SECONDS in total."""
+
+
+# The SDK's timeout is per READ, not per request: a connection the gateway
+# accepts but never answers kept a turn blocked in an SSL read for 15+
+# minutes (observed 2026-10-08, stack: _ssl__SSLSocket_read -> poll). So the
+# call runs on a worker thread and we stop waiting after the total budget.
+# A stuck worker finishes or dies on its own; the turn moves on.
+_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="llm")
+
+
+def _create(kwargs):
+    future = _pool.submit(lambda: _client.chat.completions.create(**kwargs))
+    try:
+        return future.result(timeout=config.LLM_TIMEOUT_SECONDS)
+    except FutureTimeout:
+        raise ModelTimeout(f"no response in {config.LLM_TIMEOUT_SECONDS}s") from None
 
 # A gateway hiccup (502/503/504) is the proxy or its origin being briefly
 # unreachable, not our request being wrong. Like a 429 it clears on its own,
@@ -44,9 +95,24 @@ def _call(kwargs):
     "failures" that were nothing of the sort. A rate limit is not an error
     to report, it is a queue to join.
     """
+    deadline = time.monotonic() + config.LLM_RETRY_MAX_SECONDS
+    # A gateway error gets a shorter budget than a rate limit. A real 502
+    # blip clears in seconds; one that repeats is usually the gateway
+    # rejecting this exact request (the injection eval case gets a 502 every
+    # run) and will not clear — waiting 75 s for it only inflated p95.
+    gateway_deadline = time.monotonic() + config.LLM_GATEWAY_RETRY_SECONDS
+    timed_out = False
     for attempt in range(RATE_LIMIT_TRIES):
         try:
-            return _client.chat.completions.create(**kwargs)
+            return _create(kwargs)
+        except ModelTimeout as e:
+            # One retry on a fresh connection (the stuck one stays busy in
+            # its thread); a second stall means the gateway is in trouble.
+            if timed_out:
+                raise
+            timed_out = True
+            observe.log("llm", model=kwargs.get("model"), ms=0,
+                        error=f"{e}, retrying once")
         except RateLimitError as e:
             # Two different things arrive as a 429, and only one is worth
             # waiting out. "Slow down" clears in under a minute. "This
@@ -59,6 +125,8 @@ def _call(kwargs):
                 raise
             wait = 2 ** (attempt + 1)      # 2, 4, 8, 16, 32 — a minute in all,
                                            # which is the window being enforced
+            if time.monotonic() + wait > deadline:
+                raise                      # out of retry budget: fail fast
             observe.log("llm", model=kwargs.get("model"), ms=0,
                         error=f"rate limited, waiting {wait}s")
             time.sleep(wait)
@@ -70,6 +138,8 @@ def _call(kwargs):
             if attempt == RATE_LIMIT_TRIES - 1:
                 raise
             wait = 2 ** (attempt + 1)
+            if time.monotonic() + wait > min(deadline, gateway_deadline):
+                raise                      # out of retry budget: fail fast
             observe.log("llm", model=kwargs.get("model"), ms=0,
                         error=f"gateway {e.status_code}, waiting {wait}s")
             time.sleep(wait)

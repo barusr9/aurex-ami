@@ -133,6 +133,9 @@ class WorkingMemory:
                     self.passages.append({"heading": head, "category": p.get("category"),
                                           "source": p.get("source"), "text": p.get("text", "")})
                     seen.add(head)
+        if result.get("needs_confirmation") or result.get("confirmation_required"):
+            # A preview waiting on the customer's yes: nothing changed and
+            # nothing was refused, so there is nothing to record yet.
             return
 
         if "error" in result:

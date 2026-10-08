@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
 from ami import agent_profile as profile
+from ami import answer_cache
 from ami import dashboard
 from ami import observe
 from ami import planner
@@ -36,7 +37,10 @@ from ami.users import verify_credentials
 from ami.auth import generate_token
 
 PORT = config.PORT
-SYSTEM = profile.system_prompt()
+# The same system prompt the evals measure: profile + the ReAct planning
+# rules. The web conversation used to start from the profile alone, so what
+# shipped was not what was scored.
+SYSTEM = profile.system_prompt() + planner.PLANNING_RULES
 
 # Session persistence with batching
 LONGTERM = LongTermMemory()
@@ -481,9 +485,8 @@ class Handler(BaseHTTPRequestHandler):
                 observe.context(session=sid, user_id=user_id)
                 turn_id = observe.new_turn()
 
-                convo.add_user(text)
-
-                # Policy: input check
+                # Policy: input check — BEFORE the text enters memory, so a
+                # pasted card number is scrubbed before the model ever sees it.
                 try:
                     text, note = policy.check_input(text)
                 except Exception as e:
@@ -492,30 +495,36 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(json.dumps({"reply": reply, "steps": [], **state(session, user_id)}))
                     return
 
-                # Use ReAct planner
-                system = SYSTEM + planner.PLANNING_RULES
+                convo.add_user(text)
 
                 steps = []
                 with observe.timer() as t:
                     try:
-                        # Add long-term memory to context
+                        # Long-term memory and the policy note ride along
+                        # with working memory on every step (planner.react
+                        # reads `longterm` and `extra`). They used to be built
+                        # here into a string that was never sent.
                         ltm = LONGTERM.recall(work.customer_email, sid)
-                        convo_system = system
-                        if ltm:
-                            convo_system += f"\n\nLONG-TERM CONTEXT ABOUT THIS CUSTOMER:\n{ltm}"
-                        if note:
-                            convo_system += f"\n\n{note}"
 
                         # S6: pick the model tier for this turn from the
                         # query's difficulty (cheap for simple PUBLIC, strong
                         # for PRIVATE/account work). No-op unless MODEL_CHEAP
                         # is configured.
                         turn_model = route.pick_model(text, query_type)
-                        reply = planner.react(convo, work, trace=False,
-                                              steps=steps, model=turn_model)
+
+                        # S1 answer cache: a repeated general first question
+                        # is answered from the cache with no model call.
+                        def run_planner():
+                            r = planner.react(convo, work, trace=False,
+                                              steps=steps, model=turn_model,
+                                              extra=note, longterm=LONGTERM)
+                            return r, [s["tool"] for s in steps]
+                        reply, _from_cache = answer_cache.answer(
+                            text, query_type, convo, work, run_planner)
 
                         # Policy: output check
-                        reply = policy.check_output(reply, work, text)
+                        reply = policy.check_output(reply, work, text,
+                                                    context=ltm or "")
 
                         # Remember
                         LONGTERM.remember(work, session_id=sid)

@@ -20,6 +20,14 @@ results/*
 !results/s6_routing_simulation.json
 !results/after_react.json
 !results/golden_baseline.json
+# Readout result files (2026-10-08): the runs READOUT.md cites
+!results/evals_after_phase1.json
+!results/evals_phase2a.json
+!results/evals_phase2b.json
+!results/evals_final.json
+!results/golden_after_phase1.json
+!results/golden_before_cd098e0.json
+!results/golden_final.json
 
 # OS / editor
 .DS_Store
