@@ -52,6 +52,22 @@ DEGRADED_REPLY = ("I'm having trouble completing that right now. Let me get a "
 # in work.failures exactly as it would have after the model asked.
 
 PREFETCH_ORDERS = config.PREFETCH_ORDERS
+PREFETCH_POLICY = config.PREFETCH_POLICY
+
+# Goal 3. Three golden rows failed the same way: the customer described a
+# delivery SITUATION ("says delivered but I don't have it", "hasn't updated in a
+# week", "change my delivery address") and the model answered from general
+# knowledge instead of looking up the written policy — which exists, and which
+# local retrieval ranks first for all three. The trigger is deliberately
+# narrow (delivery problems and address changes), NOT refund/return/cancel,
+# so the confirmation and guardrail flows are untouched.
+_SITUATION = re.compile(
+    r"(missing|lost|stolen|never (?:arrived|came|showed up)"
+    r"|not (?:arrived|received|delivered|moved|updated)"
+    r"|has(?:n't| not) (?:arrived|moved|updated|changed)"
+    r"|haven'?t (?:received|got(?:ten)?)|don'?t have it|didn'?t (?:arrive|get|receive)"
+    r"|delivered but|says delivered|damaged|broken|wrong item|arrived late|delayed"
+    r"|no movement|(?:delivery|shipping) address|change (?:the |my )?address)", re.I)
 _ORDER_ID = re.compile(r"\b\d{3}-\d{7}-\d{7}\b")
 
 
@@ -78,6 +94,29 @@ def prefetch_orders(convo, work):
                     ok="error" not in result)
         fetched.append(oid)
     return fetched
+
+
+def prefetch_policy(convo, work):
+    """If the latest user message describes a delivery/account problem, look
+    the written policy up now and put it in working memory.
+
+    Needs no scope — policy is public. Returns the search result, or None
+    when nothing was fetched. Same tool the model would have called, so the
+    lookup is recorded and graded exactly as if the model had asked.
+    """
+    if not PREFETCH_POLICY or not convo.history:
+        return None
+    last = convo.history[-1]
+    if last.get("role") != "user":
+        return None
+    text = last.get("content") or ""
+    if not _SITUATION.search(text):
+        return None
+    result = tools.run("search_knowledge", {"question": text})
+    work.record("search_knowledge", {"question": text}, result)
+    observe.log("prefetch", tool="search_knowledge", question=text[:80],
+                hits=len(result.get("passages", [])))
+    return result
 
 PLANNING_RULES = """
 HOW YOU PLAN
@@ -142,6 +181,7 @@ def react(convo, work, trace=True, steps=None, extra=None, model=None):
     model = model or MODEL
     t0 = time.perf_counter()
     prefetch_orders(convo, work)          # S1: saves the first round-trip
+    prefetch_policy(convo, work)          # goal 3: ground problems in the written policy
     for step in range(1, MAX_STEPS + 1):
         # Time budget: stop before another model call if this turn has already
         # run too long. Checked between steps so we never abandon a call

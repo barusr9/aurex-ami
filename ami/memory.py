@@ -106,6 +106,7 @@ class WorkingMemory:
         self.turn = 0           # which turn we're on (for policy layer)
         self.pending = None     # pending confirmation state: {key: [tool, order_id], turn: N}
         self.session_id = None  # session ID (for long-term memory exclusion)
+        self.passages = []      # policy passages already looked up (goal 3)
 
     # -- writing ----------------------------------------------------------
 
@@ -121,6 +122,18 @@ class WorkingMemory:
             if oid:
                 self.orders.setdefault(oid, {}).update(
                     {k: v for k, v in result.items() if k != "events"})
+
+        if tool == "search_knowledge" and "passages" in result:
+            # Keep what the filing cabinet said, so the brief can hand the
+            # model the written rule instead of letting it answer from memory.
+            seen = {p.get("heading") for p in self.passages}
+            for p in result["passages"]:
+                head = p.get("policy")
+                if head and head not in seen and len(self.passages) < 4:
+                    self.passages.append({"heading": head, "category": p.get("category"),
+                                          "source": p.get("source"), "text": p.get("text", "")})
+                    seen.add(head)
+            return
 
         if "error" in result:
             # A retryable error is the agent's own slip, not a decision about
@@ -148,7 +161,7 @@ class WorkingMemory:
     def brief(self):
         """Working memory as a short note the model reads before every step."""
         if not any([self.customer_email, self.orders, self.actions,
-                    self.failures, self.escalation, self.scope]):
+                    self.failures, self.escalation, self.scope, self.passages]):
             return None
 
         lines = ["WHAT YOU ALREADY KNOW (do not look these up again):"]
@@ -174,6 +187,12 @@ class WorkingMemory:
         if self.failures:
             lines.append("ALREADY REFUSED (do not retry):")
             lines += [f"- {f}" for f in self.failures]
+        if self.passages:
+            lines.append("POLICY YOU ALREADY LOOKED UP (answer from this; say which document; "
+                         "do not search again for the same question):")
+            for p in self.passages:
+                text = " ".join((p.get("text") or "").split())
+                lines.append(f"- [{p.get('category')}] {p.get('heading')}: {text[:400]}")
         if self.escalation:
             lines.append(f"NOTE: this conversation is already escalated as "
                          f"{self.escalation}. Refer to that ticket rather than "
@@ -187,12 +206,14 @@ class WorkingMemory:
                 "actions": self.actions, "failures": self.failures,
                 "escalation": self.escalation, "scope": self.scope,
                 "authenticated": self.authenticated, "turn": self.turn,
-                "pending": self.pending, "session_id": self.session_id}
+                "pending": self.pending, "session_id": self.session_id,
+                "passages": self.passages}
 
     @classmethod
     def from_dict(cls, data):
         w = cls(scope=data.get("scope"))
         w.customer_email = data.get("customer_email")
+        w.passages = data.get("passages", [])
         w.orders = data.get("orders", {})
         w.actions = data.get("actions", [])
         w.failures = data.get("failures", [])

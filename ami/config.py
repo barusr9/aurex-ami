@@ -42,6 +42,10 @@ class Config:
     # to have the model ask for it. Set PREFETCH_ORDERS=0 to reproduce the
     # pre-fix behaviour.
     PREFETCH_ORDERS: bool = os.getenv("PREFETCH_ORDERS", "1") not in ("0", "false", "False")
+    # Goal 3: when a customer describes a delivery/account PROBLEM (missing,
+    # not updated, damaged, address change), look the written policy up before
+    # the first model call so the answer is grounded in it rather than recalled.
+    PREFETCH_POLICY: bool = os.getenv("PREFETCH_POLICY", "1") not in ("0", "false", "False")
     LLM_RETRY_TRIES: int = int(os.getenv("LLM_RETRY_TRIES", "6"))   # 429 / 5xx backoff attempts
 
     # Degradation (S4) — a turn that runs longer than this degrades gracefully
