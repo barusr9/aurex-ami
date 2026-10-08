@@ -56,6 +56,10 @@ CASES = [
      "expect_tools": ["get_order"], "reply_has": ["delivered"]},
 
     {"name": "find by email",
+     # Harness fix, not a suite change: the customer is raj, so the eval logs
+     # in as raj. With no order id in the turn, _scope_for fell back to the
+     # first seed owner (demo1) and the agent correctly refused raj's orders.
+     "scope": "raj@example.com",
      "turns": ["I don't know my order number, my email is raj@example.com"],
      "expect_tools": ["find_orders"], "reply_has": ["112-1111111-1111111", "112-2222222-2222222"]},
 
@@ -295,9 +299,9 @@ def run_case(case, planner_name):
             # The two planners take different arguments: plan_execute threads a
             # longterm store and the policy note through; react reads working
             # memory directly and takes neither. Pass each only what it accepts.
-            kwargs = {"trace": False}
-            if planner_name == "plan":
-                kwargs["longterm"], kwargs["extra"] = longterm, note
+            kwargs = {"trace": False, "extra": note}
+            if planner_name in ("plan", "react"):
+                kwargs["longterm"] = longterm
             with contextlib.redirect_stdout(io.StringIO()):
                 reply = run(convo, work, **kwargs)
             reply = policy.check_output(reply, work, text)
@@ -311,7 +315,9 @@ def run_case(case, planner_name):
     # requests land in `executed`; plan_execute routes through guarded_run,
     # which can answer WITHOUT running the tool (a confirmation preview), so
     # its requests land in `requested`. Score against the right list.
-    called = executed if planner_name in ("react", "chains_of_thought") else requested
+    # Every planner now dispatches through policy.guarded_run, so "what the
+    # agent asked for" is the guard spy's list for all of them.
+    called = requested
 
     llm = [e for e in observe.EVENTS if e.get("seq", 0) > seq0 and e["kind"] == "llm"]
     return {

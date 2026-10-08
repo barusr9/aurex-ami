@@ -20,9 +20,14 @@ load_dotenv()
 # vars they read still work exactly as before.
 MODEL = config.MODEL
 
+# max_retries=0: the SDK otherwise retries 5xx twice on its own, silently,
+# INSIDE each of our attempts below — so 6 attempts became 18 requests and
+# one bad payload held an eval case for ~14 minutes. Retries live in _call().
 _client = OpenAI(
     api_key=os.environ["OPENAI_API_KEY"],
     base_url=os.environ["OPENAI_BASE_URL"],
+    timeout=config.LLM_TIMEOUT_SECONDS,
+    max_retries=0,
 )
 
 
@@ -44,6 +49,7 @@ def _call(kwargs):
     "failures" that were nothing of the sort. A rate limit is not an error
     to report, it is a queue to join.
     """
+    deadline = time.monotonic() + config.LLM_RETRY_MAX_SECONDS
     for attempt in range(RATE_LIMIT_TRIES):
         try:
             return _client.chat.completions.create(**kwargs)
@@ -59,6 +65,8 @@ def _call(kwargs):
                 raise
             wait = 2 ** (attempt + 1)      # 2, 4, 8, 16, 32 — a minute in all,
                                            # which is the window being enforced
+            if time.monotonic() + wait > deadline:
+                raise                      # out of retry budget: fail fast
             observe.log("llm", model=kwargs.get("model"), ms=0,
                         error=f"rate limited, waiting {wait}s")
             time.sleep(wait)
@@ -70,6 +78,8 @@ def _call(kwargs):
             if attempt == RATE_LIMIT_TRIES - 1:
                 raise
             wait = 2 ** (attempt + 1)
+            if time.monotonic() + wait > deadline:
+                raise                      # out of retry budget: fail fast
             observe.log("llm", model=kwargs.get("model"), ms=0,
                         error=f"gateway {e.status_code}, waiting {wait}s")
             time.sleep(wait)

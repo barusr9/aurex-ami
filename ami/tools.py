@@ -118,6 +118,32 @@ def track_package(order_id, scope=None):
     }
 
 
+def eligibility(tool, order):
+    """Why this state-changing tool cannot run on this order, or None.
+
+    The business rules only — no auth, no confirmation. Both the tools and
+    the policy layer call it, so the policy can refuse an impossible request
+    straight away instead of first asking the customer to confirm it.
+    """
+    oid, status = order["order_id"], order["status"]
+    if tool == "cancel_order":
+        if status in ("shipped", "delivered"):
+            return {"error": f"Order {oid} already {status} and cannot "
+                             f"be cancelled. It can be returned instead."}
+        if status == "cancelled":
+            return {"error": f"Order {oid} is already cancelled."}
+    elif tool == "start_return":
+        if status != "delivered":
+            return {"error": f"Order {oid} is '{status}', not delivered "
+                             f"yet, so it can't be returned."}
+        days = (date.today() - date.fromisoformat(order["delivered_on"])).days
+        if days > store.RETURN_WINDOW_DAYS:
+            return {"error": f"Delivered {days} days ago, past the "
+                             f"{store.RETURN_WINDOW_DAYS}-day return window. "
+                             f"A human agent can review an exception."}
+    return None
+
+
 def cancel_order(order_id, scope=None, confirmed=False):
     """Cancel an order — only allowed before it ships. GUARDRAIL.
 
@@ -140,6 +166,12 @@ def cancel_order(order_id, scope=None, confirmed=False):
     if order["email"].lower() != scope.lower():
         return {"error": f"No order found with id {order_id}."}
 
+    # Eligibility BEFORE confirmation: never ask a customer to confirm
+    # something that cannot happen (a shipped order, an old return).
+    refusal = eligibility("cancel_order", order)
+    if refusal:
+        return refusal
+
     # CRITICAL: Require explicit confirmation before modifying account
     if not confirmed:
         return {
@@ -149,14 +181,6 @@ def cancel_order(order_id, scope=None, confirmed=False):
             "item": order["item"],
             "price": order["price"],
         }
-
-    if order["status"] in ("shipped", "delivered"):
-        return {
-            "error": f"Order {order_id} already {order['status']} and cannot "
-                     f"be cancelled. It can be returned instead."
-        }
-    if order["status"] == "cancelled":
-        return {"error": f"Order {order_id} is already cancelled."}
 
     order["status"] = "cancelled"
     return {
@@ -190,6 +214,10 @@ def start_return(order_id, reason, scope=None, confirmed=False):
     if order["email"].lower() != scope.lower():
         return {"error": f"No order found with id {order_id}."}
 
+    refusal = eligibility("start_return", order)
+    if refusal:
+        return refusal
+
     # CRITICAL: Require explicit confirmation before modifying account
     if not confirmed:
         return {
@@ -198,20 +226,6 @@ def start_return(order_id, reason, scope=None, confirmed=False):
             "order_id": order_id,
             "item": order["item"],
             "reason": reason,
-        }
-
-    if order["status"] != "delivered":
-        return {
-            "error": f"Order {order_id} is '{order['status']}', not delivered "
-                     f"yet, so it can't be returned."
-        }
-
-    days = (date.today() - date.fromisoformat(order["delivered_on"])).days
-    if days > store.RETURN_WINDOW_DAYS:
-        return {
-            "error": f"Delivered {days} days ago, past the "
-                     f"{store.RETURN_WINDOW_DAYS}-day return window. "
-                     f"A human agent can review an exception."
         }
 
     rma = f"RMA-{len(store.RETURNS) + 1001}"
@@ -291,14 +305,22 @@ SCHEMAS = [
 
     _tool("cancel_order",
           "Cancel an order that has not shipped yet and refund it.",
-          {"order_id": {"type": "string", "description": "Order number"}},
+          {"order_id": {"type": "string", "description": "Order number"},
+           "confirmed": {"type": "string", "enum": ["yes"],
+                        "description": "Set to 'yes' ONLY after the customer has "
+                                       "explicitly agreed in a later message. "
+                                       "Omit it on the first call (a preview)."}},
           ["order_id"]),
 
     _tool("start_return",
           "Start a return for a delivered order and issue an RMA number.",
           {"order_id": {"type": "string", "description": "Order number"},
            "reason": {"type": "string",
-                      "description": "Why the customer is returning it, in their words"}},
+                      "description": "Why the customer is returning it, in their words"},
+           "confirmed": {"type": "string", "enum": ["yes"],
+                        "description": "Set to 'yes' ONLY after the customer has "
+                                       "explicitly agreed in a later message. "
+                                       "Omit it on the first call (a preview)."}},
           ["order_id", "reason"]),
 
     _tool("search_knowledge",

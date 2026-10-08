@@ -71,6 +71,17 @@ _TOOL_MENU = "\n".join(
     f"{s['function']['description']}" for s in tools.SCHEMAS)
 
 
+def notes(work, longterm, extra):
+    """Everything the model should read besides the transcript: working
+    memory, what we remember about this customer, and the policy note."""
+    past = (longterm.recall(work.customer_email, getattr(work, "session_id", None))
+            if longterm is not None else None)
+    return "\n\n".join(filter(None, [
+        work.brief(),
+        f"LONG-TERM CONTEXT ABOUT THIS CUSTOMER:\n{past}" if past else None,
+        extra])) or None
+
+
 def _plan(convo, work, longterm, extra, observations):
     """Ask for a plan. Forced tool call, so the shape is guaranteed."""
     note = notes(work, longterm, extra) or ""

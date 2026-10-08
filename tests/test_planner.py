@@ -10,7 +10,7 @@ working memory, and MAX_STEPS ends a loop that never answers.
 Every model reply is scripted with fakes.py, so nothing here calls the model.
 """
 
-from ami import planner, tools
+from ami import planner, store, tools
 from ami.memory import ConversationMemory, WorkingMemory
 from fakes import Reply, tool_call
 
@@ -157,3 +157,58 @@ def test_react_prints_the_trace_only_when_asked(fake_llm, fresh_store, capsys):
     fake_llm.script(step, Reply(content="done"))
     planner.react(ConversationMemory("s"), WorkingMemory(), trace=False)
     assert capsys.readouterr().out == ""
+
+
+# --------------------------------------------------------------------------
+# Phase 1 fixes (2026-10-07): policy dispatch, degrade, notes
+# --------------------------------------------------------------------------
+
+CANCELLABLE = "112-3333333-3333333"        # mei@example.com, preparing
+
+
+def test_react_cancel_completes_across_two_turns(fake_llm, fresh_store):
+    """The cancel flow works end to end: preview on turn 1, the customer's
+    yes on turn 2, the order is cancelled. It used to be impossible —
+    react called tools.run directly and the schema had no `confirmed`."""
+    convo, work = ConversationMemory("system"), WorkingMemory(scope="mei@example.com")
+    work.turn = 1
+    fake_llm.script(Reply(tool_calls=[tool_call("cancel_order", order_id=CANCELLABLE, thought="t")]),
+                    Reply(content="Confirm?"))
+    planner.react(convo, work, trace=False)
+    assert store.ORDERS[CANCELLABLE]["status"] == "preparing"
+
+    work.turn = 2
+    fake_llm.script(Reply(tool_calls=[tool_call("cancel_order", order_id=CANCELLABLE,
+                                                confirmed="yes", thought="t")]),
+                    Reply(content="Done."))
+    planner.react(convo, work, trace=False)
+    assert store.ORDERS[CANCELLABLE]["status"] == "cancelled"
+
+
+def test_react_cannot_confirm_in_the_same_turn(fake_llm, fresh_store):
+    convo, work = ConversationMemory("system"), WorkingMemory(scope="mei@example.com")
+    work.turn = 1
+    fake_llm.script(Reply(tool_calls=[tool_call("cancel_order", order_id=CANCELLABLE, thought="t")]),
+                    Reply(tool_calls=[tool_call("cancel_order", order_id=CANCELLABLE,
+                                                confirmed="yes", thought="t")]),
+                    Reply(content="Please confirm."))
+    planner.react(convo, work, trace=False)
+    assert store.ORDERS[CANCELLABLE]["status"] == "preparing"
+
+
+def test_react_degrades_when_the_model_call_fails(monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("502 Bad gateway")
+    monkeypatch.setattr(planner, "complete", boom)
+    reply = planner.react(ConversationMemory("s"), WorkingMemory(), trace=False)
+    assert reply == planner.DEGRADED_REPLY
+
+
+def test_react_sends_the_policy_note_to_the_model(fake_llm):
+    fake_llm.script(Reply(content="ok"))
+    convo = ConversationMemory("system")
+    convo.add_user("hi")
+    planner.react(convo, WorkingMemory(), trace=False, extra="NOTE: card removed")
+    sent = fake_llm.calls[0]["messages"]
+    assert any("NOTE: card removed" in (m.get("content") or "") for m in sent
+               if m["role"] == "system")

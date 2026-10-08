@@ -38,6 +38,8 @@ class Config:
     MODEL_STRONG: str = os.getenv("MODEL_STRONG", "")     # S6: strong tier for hard turns ("" = use MODEL)
     MAX_STEPS: int = int(os.getenv("MAX_STEPS", "6"))      # tool-loop ceiling in the ReAct planner
     LLM_RETRY_TRIES: int = int(os.getenv("LLM_RETRY_TRIES", "6"))   # 429 / 5xx backoff attempts
+    LLM_RETRY_MAX_SECONDS: int = int(os.getenv("LLM_RETRY_MAX_SECONDS", "75"))  # total backoff per call
+    LLM_TIMEOUT_SECONDS: int = int(os.getenv("LLM_TIMEOUT_SECONDS", "60"))      # one request
 
     # Degradation (S4) — a turn that runs longer than this degrades gracefully
     # instead of hanging. 0 disables the budget.
