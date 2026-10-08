@@ -41,8 +41,8 @@ DEGRADED_REPLY = ("I'm having trouble completing that right now. Let me get a "
 
 PLANNING_RULES = """
 HOW YOU PLAN
-- Put your reasoning in each tool call's 'thought': what you know, what is
-  missing, why this tool. One action at a time; read the result first.
+- Put your reasoning in each tool call's 'thought', in 12 words or fewer:
+  why this tool now. One action at a time; read the result first.
 - An error with "retry": true is your own mistake: fix the arguments and call
   again silently. Any other error is a refusal (see WHEN A TOOL REFUSES).
 - Stop as soon as you can answer; skip tools you do not need.
@@ -70,7 +70,7 @@ def _schemas_with_thought():
             **params["properties"],
             "thought": {
                 "type": "string",
-                "description": "Why this tool, briefly.",
+                "description": "Why this tool, 12 words max.",
             },
         }
         params["required"] = params["required"] + ["thought"]
