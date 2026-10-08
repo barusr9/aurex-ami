@@ -26,7 +26,7 @@ def test_persistent_502_fails_within_the_retry_budget(monkeypatch):
 
     with pytest.raises(APIStatusError):
         llm._call({"model": "m", "messages": []})
-    assert clock["t"] <= llm.config.LLM_RETRY_MAX_SECONDS     # waited within budget
+    assert clock["t"] <= llm.config.LLM_GATEWAY_RETRY_SECONDS  # gateway errors: the short budget
     assert len(calls) <= llm.RATE_LIMIT_TRIES
 
 

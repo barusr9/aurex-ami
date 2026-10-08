@@ -41,16 +41,11 @@ DEGRADED_REPLY = ("I'm having trouble completing that right now. Let me get a "
 
 PLANNING_RULES = """
 HOW YOU PLAN
-Work one step at a time, and think before each step.
-- Before every tool call, state your reasoning in the 'thought' argument:
-  what you already know, what is still missing, and why this tool is next.
-- Take ONE action at a time. Read the observation before deciding again.
-- Errors come in two kinds, and they are handled differently:
-  * "retry": true  -> YOU called the tool wrongly. Fix the arguments and
-    call it again. Do not tell the customer about this.
-  * no retry flag  -> a POLICY refusal. Never repeat the call. Tell the
-    customer the rule and offer their next option.
-- Stop as soon as you can answer. Do not call tools you do not need.
+- Put your reasoning in each tool call's 'thought': what you know, what is
+  missing, why this tool. One action at a time; read the result first.
+- An error with "retry": true is your own mistake: fix the arguments and call
+  again silently. Any other error is a refusal (see WHEN A TOOL REFUSES).
+- Stop as soon as you can answer; skip tools you do not need.
 """
 
 
@@ -75,8 +70,7 @@ def _schemas_with_thought():
             **params["properties"],
             "thought": {
                 "type": "string",
-                "description": "Your reasoning: what you know, what you "
-                               "still need, and why this tool is next.",
+                "description": "Why this tool, briefly.",
             },
         }
         params["required"] = params["required"] + ["thought"]

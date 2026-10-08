@@ -75,6 +75,11 @@ def _call(kwargs):
     to report, it is a queue to join.
     """
     deadline = time.monotonic() + config.LLM_RETRY_MAX_SECONDS
+    # A gateway error gets a shorter budget than a rate limit. A real 502
+    # blip clears in seconds; one that repeats is usually the gateway
+    # rejecting this exact request (the injection eval case gets a 502 every
+    # run) and will not clear — waiting 75 s for it only inflated p95.
+    gateway_deadline = time.monotonic() + config.LLM_GATEWAY_RETRY_SECONDS
     for attempt in range(RATE_LIMIT_TRIES):
         try:
             return _client.chat.completions.create(**kwargs)
@@ -103,7 +108,7 @@ def _call(kwargs):
             if attempt == RATE_LIMIT_TRIES - 1:
                 raise
             wait = 2 ** (attempt + 1)
-            if time.monotonic() + wait > deadline:
+            if time.monotonic() + wait > min(deadline, gateway_deadline):
                 raise                      # out of retry budget: fail fast
             observe.log("llm", model=kwargs.get("model"), ms=0,
                         error=f"gateway {e.status_code}, waiting {wait}s")

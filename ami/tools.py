@@ -287,57 +287,45 @@ def _tool(name, description, properties, required):
 
 SCHEMAS = [
     _tool("find_orders",
-          "Find a customer's orders by email address. Use when the customer "
-          "does not know their order number.",
+          "List the logged-in customer's orders (when they lack an order number).",
           {"email": {"type": "string", "description": "Customer email address"}},
           ["email"]),
 
     _tool("get_order",
-          "Get the status and details of one order by its order number.",
-          {"order_id": {"type": "string",
-                        "description": "Order number, e.g. 112-1111111-1111111"}},
+          "Status and details of one order.",
+          {"order_id": {"type": "string", "description": "e.g. 112-1111111-1111111"}},
           ["order_id"]),
 
     _tool("track_package",
-          "Get carrier tracking events and delivery estimate for an order.",
+          "Carrier tracking events and delivery estimate.",
           {"order_id": {"type": "string", "description": "Order number"}},
           ["order_id"]),
 
     _tool("cancel_order",
-          "Cancel an order that has not shipped yet and refund it.",
+          "Cancel an unshipped order and refund it.",
           {"order_id": {"type": "string", "description": "Order number"},
            "confirmed": {"type": "string", "enum": ["yes"],
-                        "description": "Set to 'yes' ONLY after the customer has "
-                                       "explicitly agreed in a later message. "
-                                       "Omit it on the first call (a preview)."}},
+                        "description": "Only after the customer said yes in a later message"}},
           ["order_id"]),
 
     _tool("start_return",
-          "Start a return for a delivered order and issue an RMA number.",
+          "Start a return for a delivered order (issues an RMA).",
           {"order_id": {"type": "string", "description": "Order number"},
            "reason": {"type": "string",
-                      "description": "Why the customer is returning it, in their words"},
+                      "description": "Customer's reason, in their words"},
            "confirmed": {"type": "string", "enum": ["yes"],
-                        "description": "Set to 'yes' ONLY after the customer has "
-                                       "explicitly agreed in a later message. "
-                                       "Omit it on the first call (a preview)."}},
+                        "description": "Only after the customer said yes in a later message"}},
           ["order_id", "reason"]),
 
     _tool("search_knowledge",
-          "Look up what is written down, and quote it back rather than "
-          "guessing. Covers four kinds of knowledge: what the customer is "
-          "entitled to, what you are allowed to do, how to phrase something "
-          "difficult, and the law a policy rests on. Use it for any question "
-          "about the rules themselves.",
-          {"question": {"type": "string",
-                        "description": "The question, in plain words"}},
+          "Search the written policies, agent rules, tone guide and regulations. "
+          "Use for any question about the rules; quote what it returns.",
+          {"question": {"type": "string"}},
           ["question"]),
 
     _tool("escalate",
-          "Hand the conversation to a human agent. Use when the customer asks "
-          "for a human, is very upset, or the request is outside these tools.",
-          {"summary": {"type": "string",
-                       "description": "One-line summary of the issue for the human agent"}},
+          "Hand off to a human agent.",
+          {"summary": {"type": "string", "description": "One line for the human agent"}},
           ["summary"]),
 ]
 

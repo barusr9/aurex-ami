@@ -46,6 +46,7 @@ class Config:
     MAX_STEPS: int = int(os.getenv("MAX_STEPS", "6"))      # tool-loop ceiling in the ReAct planner
     LLM_RETRY_TRIES: int = int(os.getenv("LLM_RETRY_TRIES", "6"))   # 429 / 5xx backoff attempts
     LLM_RETRY_MAX_SECONDS: int = int(os.getenv("LLM_RETRY_MAX_SECONDS", "75"))  # total backoff per call
+    LLM_GATEWAY_RETRY_SECONDS: int = int(os.getenv("LLM_GATEWAY_RETRY_SECONDS", "15"))  # 502/503/504 backoff
     LLM_TIMEOUT_SECONDS: int = int(os.getenv("LLM_TIMEOUT_SECONDS", "60"))      # one request
     LLM_FORCE_IPV4: bool = os.getenv("LLM_FORCE_IPV4", "") == "1"                 # skip a black-holed IPv6 route
 
