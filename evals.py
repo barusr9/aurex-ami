@@ -383,6 +383,10 @@ def main():
     ap.add_argument("--planner", default="react", choices=["react", "plan", "chains_of_thought"])
     ap.add_argument("--runs", type=int, default=1)
     ap.add_argument("--only", default="")
+    ap.add_argument("--exclude", default="",
+                    help="Skip cases whose name contains this. E.g. --exclude "
+                         "complaint runs only the 20 frozen cases, not the 10 "
+                         "added this weekend (the readout reports them apart).")
     ap.add_argument("--out", default="results/eval_results.json")
     ap.add_argument("--feedback", action="store_true",
                     help="Show impact of feedback from state/feedback.jsonl on golden set")
@@ -393,7 +397,8 @@ def main():
                          "suite run is ~170k tokens.")
     a = ap.parse_args()
 
-    cases = [c for c in CASES if a.only.lower() in c["name"].lower()]
+    cases = [c for c in CASES if a.only.lower() in c["name"].lower()
+             and not (a.exclude and a.exclude.lower() in c["name"].lower())]
     budget_note = f" · budget {a.budget:,} tok" if a.budget else ""
     print(f"{len(cases)} cases × {a.runs} run(s) · planner={a.planner}{budget_note}\n")
 
