@@ -253,14 +253,17 @@ def run_case(case, planner_name):
     # Two spies. The policy layer can answer a request WITHOUT running the
     # tool (a confirmation preview, a repeat escalation), so "what the agent
     # asked for" and "what actually executed" are different lists.
-    requested, executed, refused, observed = [], [], [], []
+    requested, executed, refused = [], [], []
+    # "Everything the model got to read back" — golden.py grades retrieval
+    # and groundedness against this: a claim in the reply that is not in here
+    # was invented. It is recorded at BOTH layers (see the per-planner pick
+    # below) because the two planners reach the tools by different paths.
+    observed_guard, observed_run = [], []
     real_guard, real_run = policy.guarded_run, tools.run
     def spy_guard(name, args, work, _g=real_guard):
         requested.append(name)
         result = _g(name, args, work)
-        # Everything the model got to read back. golden.py grades against
-        # this: a claim that is in the reply but not in here was invented.
-        observed.append({"tool": name, "args": args, "result": result})
+        observed_guard.append({"tool": name, "args": args, "result": result})
         return result
     # The spies must match the real signatures. tools.run now takes a scope
     # kwarg (data isolation), so the stand-in has to accept and forward it or
@@ -268,6 +271,7 @@ def run_case(case, planner_name):
     def spy_run(name, args, scope=None, _r=real_run):
         out = _r(name, args, scope=scope)
         executed.append(name)
+        observed_run.append({"tool": name, "args": args, "result": out})
         if "error" in out and not out.get("retry"):
             refused.append(name)
         return out
@@ -312,6 +316,14 @@ def run_case(case, planner_name):
     # which can answer WITHOUT running the tool (a confirmation preview), so
     # its requests land in `requested`. Score against the right list.
     called = executed if planner_name in ("react", "chains_of_thought") else requested
+    # Same split for what the model read back. react's tool results only ever
+    # pass through tools.run; plan_execute's pass through guarded_run, which
+    # can answer WITHOUT running the tool (a confirmation preview) — so for
+    # plan the guard layer is the complete record, and using both would
+    # double-count. Before this, react's `observed` was always empty and
+    # golden.py scored retrieval 0.00 on every row while the trace showed 19
+    # real search_knowledge calls — a grader bug, not an agent result.
+    observed = observed_run if planner_name in ("react", "chains_of_thought") else observed_guard
 
     llm = [e for e in observe.EVENTS if e.get("seq", 0) > seq0 and e["kind"] == "llm"]
     return {
