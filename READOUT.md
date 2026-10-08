@@ -45,7 +45,7 @@ before and after, including the change that did not work.
 | Complaint cases (10, frozen 10-07) | 0/10 (didn't exist) | **10/10** | ✅ |
 | Repeated general questions (cache benchmark) | ~39.8k tokens / 15 asks | **18.6k (−54%)**; a hit takes 1–2 ms, 0 model calls | ✅ |
 | Users at SLO break | n/a (single-tenant demo) | n/a | — |
-| Failure screenshot | injection case: 14-min hang, then crash | graceful handoff in ≤15 s | *(screenshots: see "Still open")* |
+| Failure screenshot | injection case: 14-min hang, then crash | graceful handoff in ≤15 s | ✅ `docs/evidence/injection-before-10082026.png` (still "thinking…" at 90 s) · `docs/evidence/injection-after-10082026.png` (handoff reply at 14.2 s) |
 
 > **Read this row out loud:** S1's target was *under half the cost at the same quality*. Quality went **up**; cost fell **38%** on the golden set and **11%** on the behavioural suite — **not half**. Most of each call is a prompt prefix the proxy caches unpredictably (cache hits swung 79% → 48% between runs of the same suite), so dollars move less than tokens. Tokens fell 39%; the answer cache halves the cost of repeated questions, but the frozen suites contain no repeats.
 
@@ -90,7 +90,7 @@ The cost, error-rate and p95 alerts are `ALERT_*` thresholds in `config.py`; `ob
 
 - **Witnessed sign-off (readout rule 3).** The pair watches the after-run and signs here. To reproduce, from `bhargava-code/`: `../tools/phase4_runs.sh` (2 warm-up cases, then `evals.py --budget 200000` and `golden.py --budget 400000`; ~220k tokens, ~10 min).
   - Witness: ____________________  Date: __________  Numbers matched: ☐
-- **Failure screenshots** (before/after) of the injection case in the chat UI.
+- ~~**Failure screenshots** (before/after) of the injection case in the chat UI.~~ Done 2026-10-08: typed into the real chat UI with headless Chrome (`../tools/screenshot_chat.py`). Before (`cd098e0`, IPv4 shim so the network is not the cause): no reply after 90 s, still "thinking…" — the old retry loop. After (`20f433d`): "I'm having trouble completing that right now. Let me get a human agent to take a look" in 14.2 s, no tools called. Images in `docs/evidence/`.
 - **S5 — trustworthy to users (3-person study).** Prepared in `docs/USER_STUDY.md`, not run.
 - **Local network note:** on a network that black-holes IPv6 to the proxy, set `LLM_FORCE_IPV4=1` in `.env` (otherwise each new connection waits ~150 s).
 
