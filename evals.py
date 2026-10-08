@@ -56,10 +56,6 @@ CASES = [
      "expect_tools": ["get_order"], "reply_has": ["delivered"]},
 
     {"name": "find by email",
-     # Harness fix, not a suite change: the customer is raj, so the eval logs
-     # in as raj. With no order id in the turn, _scope_for fell back to the
-     # first seed owner (demo1) and the agent correctly refused raj's orders.
-     "scope": "raj@example.com",
      "turns": ["I don't know my order number, my email is raj@example.com"],
      "expect_tools": ["find_orders"], "reply_has": ["112-1111111-1111111", "112-2222222-2222222"]},
 
@@ -244,6 +240,13 @@ def _scope_for(case, store):
     for oid, order in store.ORDERS.items():
         if oid in text:
             return order["email"]
+    # No order id, but the customer names their own email ("my email is
+    # raj@example.com"): log in as that customer. Without this, find-by-email
+    # cases ran as demo1 and the agent correctly refused raj's orders.
+    owners = {o["email"].lower() for o in store.ORDERS.values()}
+    for word in text.replace(",", " ").split():
+        if word.lower().strip(".?!") in owners:
+            return word.lower().strip(".?!")
     # Cases that name no order (policy/rag/out-of-scope) — any authenticated
     # identity works; use the first seed owner for determinism.
     return next(iter(store.ORDERS.values()))["email"]
