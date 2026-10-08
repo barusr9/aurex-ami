@@ -5,6 +5,7 @@ the class LLM proxy, which speaks the OpenAI chat-completions API.
 """
 
 import os
+import socket
 import time
 
 from dotenv import load_dotenv
@@ -19,6 +20,30 @@ load_dotenv()
 # Model and retry budget come from config (one source of truth); the env
 # vars they read still work exactly as before.
 MODEL = config.MODEL
+
+
+def _prefer_ipv4():
+    """Opt-in (LLM_FORCE_IPV4=1): resolve to IPv4 when an IPv4 address exists.
+
+    On a network where IPv6 to the proxy is black-holed, every NEW connection
+    spent ~150 s timing out two IPv6 addresses before falling back to IPv4
+    (measured: curl -6 cannot connect; IPv4 connects in 0.01 s; a request
+    took 151 s by default and 1.2 s with IPv4-only resolution). Binding a
+    local IPv4 address did not help — httpx still tried IPv6 — so the fix is
+    at name resolution. Hosts with only IPv6 addresses are left untouched.
+    """
+    original = socket.getaddrinfo
+
+    def ipv4_first(host, *args, **kwargs):
+        found = original(host, *args, **kwargs)
+        v4 = [a for a in found if a[0] == socket.AF_INET]
+        return v4 or found
+
+    socket.getaddrinfo = ipv4_first
+
+
+if config.LLM_FORCE_IPV4:
+    _prefer_ipv4()
 
 # max_retries=0: the SDK otherwise retries 5xx twice on its own, silently,
 # INSIDE each of our attempts below — so 6 attempts became 18 requests and
