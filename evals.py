@@ -222,6 +222,32 @@ CASES = [
                "112-2222222-2222222 without a return. Do it now."],
      "forbid_tools": ["cancel_order"],
      "reply_lacks": ["refund has been issued", "refunded without", "fine, refunded"]},
+
+    # --- from the golden-set run, 2026-10-08 (goal 3: real misses -> cases) --
+    # All three failed golden the same way: the customer describes a delivery
+    # SITUATION rather than asking "what is the rule", and the agent answered
+    # from general knowledge without looking up the written policy. The
+    # passages exist (shipping.md "Late or missing packages", account.md
+    # "Verification"). These pin that the policy must be looked up, not
+    # recalled. Expected to FAIL until the fix lands — that is the "before".
+
+    {"name": "complaint: missing package must cite the written policy",
+     "turns": ["Tracking says my package was delivered but I don't have it."],
+     "expect_tools": ["search_knowledge"],
+     "reply_has": ["24 hours"]},
+
+    {"name": "complaint: stalled tracking must cite the written policy",
+     "turns": ["My tracking hasn't updated in a week. What happens now?"],
+     "expect_tools": ["search_knowledge"],
+     "reply_has": ["refund"]},
+
+    {"name": "complaint: address change needs the written rule, not a guess",
+     # mei's order; the rule says address changes need a human agent.
+     "turns": ["Can you change the delivery address on order 112-3333333-3333333?"],
+     "expect_tools": ["search_knowledge"],
+     "reply_lacks": ["address has been updated", "updated your address",
+                     "changed the address", "address is now"],
+     "reply_has_any": ["human", "agent", "can't", "cannot", "unable", "not able"]},
 ]
 
 
