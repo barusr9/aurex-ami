@@ -50,9 +50,14 @@ class Config:
 
     # Monitoring (S2) — thresholds that, when crossed, raise an `alert` event.
     # 0 disables a given alert.
-    ALERT_ERROR_RATE_PCT: int = int(os.getenv("ALERT_ERROR_RATE_PCT", "0"))
-    ALERT_COST_PER_TURN_USD: float = float(os.getenv("ALERT_COST_PER_TURN_USD", "0"))
-    ALERT_P95_MS: int = int(os.getenv("ALERT_P95_MS", "0"))
+    # Shipped ARMED (S2 / readout §6). A monitor that defaults to off is a
+    # demo, not production. These are the thresholds the readout commits to;
+    # set one to 0 to silence it. Note p95 is deliberately above today's
+    # measured value's neighbourhood but below the worst runs (15–18 s), so
+    # it fires on a bad day — that is the point of setting it.
+    ALERT_ERROR_RATE_PCT: int = int(os.getenv("ALERT_ERROR_RATE_PCT", "15"))
+    ALERT_COST_PER_TURN_USD: float = float(os.getenv("ALERT_COST_PER_TURN_USD", "0.02"))
+    ALERT_P95_MS: int = int(os.getenv("ALERT_P95_MS", "12000"))
 
     # Memory
     MAX_CONVERSATION_TURNS: int = int(os.getenv("MAX_CONVERSATION_TURNS", "40"))
