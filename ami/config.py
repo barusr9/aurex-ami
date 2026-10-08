@@ -37,6 +37,11 @@ class Config:
     MODEL_CHEAP: str = os.getenv("MODEL_CHEAP", "")       # S6: cheap tier for simple turns ("" = disabled)
     MODEL_STRONG: str = os.getenv("MODEL_STRONG", "")     # S6: strong tier for hard turns ("" = use MODEL)
     MAX_STEPS: int = int(os.getenv("MAX_STEPS", "6"))      # tool-loop ceiling in the ReAct planner
+    # S1: when an authenticated customer's message names an order id, look
+    # it up BEFORE the first model call instead of spending a whole round-trip
+    # to have the model ask for it. Set PREFETCH_ORDERS=0 to reproduce the
+    # pre-fix behaviour.
+    PREFETCH_ORDERS: bool = os.getenv("PREFETCH_ORDERS", "1") not in ("0", "false", "False")
     LLM_RETRY_TRIES: int = int(os.getenv("LLM_RETRY_TRIES", "6"))   # 429 / 5xx backoff attempts
 
     # Degradation (S4) — a turn that runs longer than this degrades gracefully
