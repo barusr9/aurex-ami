@@ -156,16 +156,18 @@ class TestGuardedRunConfirmation:
         in a turn later than the pending request. Once that passes it spends
         the pending marker and hands off to tools.run with confirmed=True.
         """
-        work = WorkingMemory()
+        # The SESSION says who is asking (scope on working memory). A scope in
+        # the tool arguments is model-supplied and ignored — see test_policy_scope.
+        work = WorkingMemory(scope="mei@example.com")
         work.turn = 1
         # First call to set pending (112-3333333-3333333 is mei's cancellable order)
         policy.guarded_run(
-            "cancel_order", {"order_id": "112-3333333-3333333", "scope": "mei@example.com"}, work)
+            "cancel_order", {"order_id": "112-3333333-3333333"}, work)
         # Second call with explicit string confirmation ("yes", not boolean True)
         work.turn = 2  # Different turn
         result = policy.guarded_run(
             "cancel_order",
-            {"order_id": "112-3333333-3333333", "scope": "mei@example.com", "confirmed": "yes"},
+            {"order_id": "112-3333333-3333333", "confirmed": "yes"},
             work,
         )
         # The cross-turn gate accepted the confirmation and spent the pending marker.
