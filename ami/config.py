@@ -8,6 +8,13 @@ import os
 from pathlib import Path
 from dataclasses import dataclass
 
+from dotenv import load_dotenv
+
+# Load .env BEFORE the Config fields read os.getenv. llm.py used to load it
+# later, so every value set only in .env (MODEL, LLM_*, ALERT_*) was ignored
+# here and the defaults won — e.g. runs reported MODEL as gpt-4o-mini.
+load_dotenv()
+
 
 @dataclass(frozen=True)
 class Config:
@@ -43,6 +50,10 @@ class Config:
     # pre-fix behaviour.
     PREFETCH_ORDERS: bool = os.getenv("PREFETCH_ORDERS", "1") not in ("0", "false", "False")
     LLM_RETRY_TRIES: int = int(os.getenv("LLM_RETRY_TRIES", "6"))   # 429 / 5xx backoff attempts
+    LLM_RETRY_MAX_SECONDS: int = int(os.getenv("LLM_RETRY_MAX_SECONDS", "75"))  # total backoff per call
+    LLM_GATEWAY_RETRY_SECONDS: int = int(os.getenv("LLM_GATEWAY_RETRY_SECONDS", "15"))  # 502/503/504 backoff
+    LLM_TIMEOUT_SECONDS: int = int(os.getenv("LLM_TIMEOUT_SECONDS", "60"))      # one request
+    LLM_FORCE_IPV4: bool = os.getenv("LLM_FORCE_IPV4", "") == "1"                 # skip a black-holed IPv6 route
 
     # Degradation (S4) — a turn that runs longer than this degrades gracefully
     # instead of hanging. 0 disables the budget.

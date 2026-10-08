@@ -516,3 +516,13 @@ class TestLongTermMemory:
         restored = LongTermMemory.from_dict(ltm.to_dict())
         assert restored.customer_id == "cust-1"
         assert "existing@example.com" in restored.customers
+
+
+def test_policy_preview_is_not_recorded_as_an_action():
+    """The policy layer's confirmation preview has no `error` key; record()
+    used to treat it as a completed cancel and crash with KeyError."""
+    from ami.memory import WorkingMemory
+    work = WorkingMemory()
+    work.record("cancel_order", {"order_id": "o1"},
+                {"needs_confirmation": True, "message": "ask first"})
+    assert work.actions == [] and work.failures == []

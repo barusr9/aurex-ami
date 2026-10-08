@@ -22,6 +22,7 @@ import re
 import time
 
 from ami import observe
+from ami import policy
 from ami import tools
 from ami.llm import MODEL, complete
 from ami.config import config
@@ -81,16 +82,11 @@ def prefetch_orders(convo, work):
 
 PLANNING_RULES = """
 HOW YOU PLAN
-Work one step at a time, and think before each step.
-- Before every tool call, state your reasoning in the 'thought' argument:
-  what you already know, what is still missing, and why this tool is next.
-- Take ONE action at a time. Read the observation before deciding again.
-- Errors come in two kinds, and they are handled differently:
-  * "retry": true  -> YOU called the tool wrongly. Fix the arguments and
-    call it again. Do not tell the customer about this.
-  * no retry flag  -> a POLICY refusal. Never repeat the call. Tell the
-    customer the rule and offer their next option.
-- Stop as soon as you can answer. Do not call tools you do not need.
+- Put your reasoning in each tool call's 'thought': what you know, what is
+  missing, why this tool. One action at a time; read the result first.
+- An error with "retry": true is your own mistake: fix the arguments and call
+  again silently. Any other error is a refusal (see WHEN A TOOL REFUSES).
+- Stop as soon as you can answer; skip tools you do not need.
 """
 
 
@@ -115,8 +111,7 @@ def _schemas_with_thought():
             **params["properties"],
             "thought": {
                 "type": "string",
-                "description": "Your reasoning: what you know, what you "
-                               "still need, and why this tool is next.",
+                "description": "Why this tool, briefly.",
             },
         }
         params["required"] = params["required"] + ["thought"]
@@ -127,7 +122,8 @@ def _schemas_with_thought():
 SCHEMAS = _schemas_with_thought()
 
 
-def react(convo, work, trace=True, steps=None, extra=None, model=None):
+def react(convo, work, trace=True, steps=None, extra=None, model=None,
+          longterm=None):
     """Run the ReAct loop until the agent produces an answer for the customer.
 
     convo : ConversationMemory — what was said, sent in full to the model
@@ -141,6 +137,15 @@ def react(convo, work, trace=True, steps=None, extra=None, model=None):
     """
     model = model or MODEL
     t0 = time.perf_counter()
+    # What rides along with working memory on every step: the policy layer's
+    # note (a scrubbed card number, an override attempt) and what we remember
+    # about this customer from earlier sessions. Both were computed by the
+    # callers and then dropped before they reached the model.
+    if longterm is not None:
+        past = longterm.recall(work.customer_email, getattr(work, "session_id", None))
+        if past:
+            extra = "\n\n".join(filter(None, [
+                extra, f"LONG-TERM CONTEXT ABOUT THIS CUSTOMER:\n{past}"]))
     prefetch_orders(convo, work)          # S1: saves the first round-trip
     for step in range(1, MAX_STEPS + 1):
         # Time budget: stop before another model call if this turn has already
@@ -153,8 +158,18 @@ def react(convo, work, trace=True, steps=None, extra=None, model=None):
 
         # Working memory is re-read before EVERY step, so the agent plans
         # against what it has already established, not just the transcript.
-        response = complete(convo.messages(extra_system=work.brief()),
-                            tools=SCHEMAS, model=model)
+        try:
+            response = complete(
+                convo.messages(extra_system="\n\n".join(
+                    filter(None, [work.brief(), extra])) or None),
+                tools=SCHEMAS, model=model)
+        except Exception as e:
+            # The model is down, timing out, or the gateway rejects the
+            # request. llm.py has already retried what is worth retrying; the
+            # customer gets an honest handoff, not a crash or a stack trace.
+            observe.log("degraded", reason="model_error", step=step,
+                        error=f"{type(e).__name__}: {str(e)[:200]}")
+            return DEGRADED_REPLY
         message = response.choices[0].message
         convo.add_assistant(message.model_dump(exclude_none=True))
 
@@ -171,9 +186,10 @@ def react(convo, work, trace=True, steps=None, extra=None, model=None):
 
             # Pull the reasoning out; it is for us, not for the tool.
             thought = args.pop("thought", "(no thought given)")
-            # Thread scope through all tool calls for data isolation (CRITICAL)
-            scope = getattr(work, 'scope', None)
-            result = tools.run(name, args, scope=scope)
+            # Every tool call goes through the policy layer: it adds the
+            # user's scope, refuses impossible actions, and only lets a
+            # cancel/return run after a confirmation from a later turn.
+            result = policy.guarded_run(name, args, work)
             work.record(name, args, result)      # <- the observation updates what we know
 
             if steps is not None:
@@ -208,7 +224,7 @@ Break down your reasoning into clear steps before acting.
 """
 
 
-def chains_of_thought(convo, work, trace=True, steps=None):
+def chains_of_thought(convo, work, trace=True, steps=None, extra=None):
     """Run the chains-of-thought loop until the agent produces an answer.
 
     Chains of thought: the agent reasons through the problem step-by-step
@@ -223,7 +239,8 @@ def chains_of_thought(convo, work, trace=True, steps=None):
     for step in range(1, MAX_STEPS + 1):
         # Working memory is re-read before EVERY step, so the agent plans
         # against what it has already established, not just the transcript.
-        response = complete(convo.messages(extra_system=work.brief()),
+        response = complete(convo.messages(extra_system="\n\n".join(
+                                filter(None, [work.brief(), extra])) or None),
                             tools=SCHEMAS)
         message = response.choices[0].message
         convo.add_assistant(message.model_dump(exclude_none=True))
@@ -241,9 +258,10 @@ def chains_of_thought(convo, work, trace=True, steps=None):
 
             # Pull the reasoning out; it is for us, not for the tool.
             thought = args.pop("thought", "(no thought given)")
-            # Thread scope through all tool calls for data isolation (CRITICAL)
-            scope = getattr(work, 'scope', None)
-            result = tools.run(name, args, scope=scope)
+            # Every tool call goes through the policy layer: it adds the
+            # user's scope, refuses impossible actions, and only lets a
+            # cancel/return run after a confirmation from a later turn.
+            result = policy.guarded_run(name, args, work)
             work.record(name, args, result)      # <- the observation updates what we know
 
             if steps is not None:

@@ -23,6 +23,7 @@ and the conversation itself — things no single tool can see:
 import re
 
 from ami import observe
+from ami import store
 from ami import tools
 
 CONFIRM_TOOLS = {"cancel_order", "start_return"}     # change state: confirm first
@@ -73,6 +74,9 @@ def guarded_run(name, args, work):
     confirmation = args.pop("confirmed", None)
     # Confirmation must be an explicit string ("yes" or "confirm"), not just a boolean flag
     confirmed = confirmation in ("yes", "confirm")
+    # Who is asking comes from the session (working memory), never from the
+    # model. Without it every order tool answers "Authentication required".
+    scope = args.pop("scope", None) or getattr(work, "scope", None)
 
     # Rule: one escalation per conversation. The tool cannot know this —
     # only working memory does.
@@ -88,6 +92,18 @@ def guarded_run(name, args, work):
         key = [name, args.get("order_id", "")]
         pending = work.pending
 
+        # Rule: never ask to confirm what cannot happen. If the order is
+        # missing, not theirs, or ineligible (shipped, past the window), run
+        # the tool now: it refuses with the real reason, and that refusal is
+        # logged and observed like any other.
+        order = store.ORDERS.get(str(key[1]).strip())
+        if (not scope or not order or order["email"].lower() != scope.lower()
+                or tools.eligibility(name, order)):
+            work.pending = None
+            observe.log("policy", stage="action", rule="refused_before_confirmation",
+                        tool=name, order_id=key[1])
+            return tools.run(name, args, scope=scope)
+
         # Case 1: There's a pending confirmation and user sent explicit confirmation
         if pending and pending["key"] == key:
             if confirmed and work.turn > pending["turn"]:
@@ -95,6 +111,7 @@ def guarded_run(name, args, work):
                 work.pending = None  # spent
                 observe.log("policy", stage="action", rule="confirmation_accepted",
                            tool=name, order_id=key[1])
+                args["confirmed"] = True     # the tool's own check: policy vouches for it
             else:
                 # Invalid: confirmation attempt but either:
                 #   - not explicit (confirmed != "yes"/"confirm"), or
@@ -117,7 +134,7 @@ def guarded_run(name, args, work):
                                f"Only after they explicitly agree in their own words "
                                f"should you call again with confirmed='yes'."}
 
-    return tools.run(name, args)
+    return tools.run(name, args, scope=scope)
 
 
 # --------------------------------------------------------------------------

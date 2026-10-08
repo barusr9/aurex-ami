@@ -122,6 +122,11 @@ class WorkingMemory:
                 self.orders.setdefault(oid, {}).update(
                     {k: v for k, v in result.items() if k != "events"})
 
+        if result.get("needs_confirmation") or result.get("confirmation_required"):
+            # A preview waiting on the customer's yes: nothing changed and
+            # nothing was refused, so there is nothing to record yet.
+            return
+
         if "error" in result:
             # A retryable error is the agent's own slip, not a decision about
             # the customer. Logging it would poison working memory with a
