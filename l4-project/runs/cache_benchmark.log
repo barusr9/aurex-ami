@@ -1,0 +1,19 @@
+round 1  MISS  PUBLIC  calls=2  tokens= 2,541  cost=$0.0024    4853ms  What is your return policy?
+round 1  MISS  PRIVATE calls=2  tokens= 2,732  cost=$0.0030    3778ms  How do refunds work for gift cards?
+round 1  MISS  PUBLIC  calls=2  tokens= 2,645  cost=$0.0024    3527ms  Does a gift card balance expire?
+round 1  MISS  PUBLIC  calls=2  tokens= 2,720  cost=$0.0032    4361ms  My package says delivered but it isn't here. Wha
+round 1  MISS  PUBLIC  calls=2  tokens= 2,613  cost=$0.0024    4020ms  Can I change the delivery address after ordering
+round 2  HIT   PUBLIC  calls=0  tokens=     0  cost=$0.0000       2ms  What is your return policy?
+round 2  MISS  PRIVATE calls=2  tokens= 2,694  cost=$0.0030    3836ms  How do refunds work for gift cards?
+round 2  HIT   PUBLIC  calls=0  tokens=     0  cost=$0.0000       2ms  Does a gift card balance expire?
+round 2  HIT   PUBLIC  calls=0  tokens=     0  cost=$0.0000       2ms  My package says delivered but it isn't here. Wha
+round 2  HIT   PUBLIC  calls=0  tokens=     0  cost=$0.0000       1ms  Can I change the delivery address after ordering
+round 3  HIT   PUBLIC  calls=0  tokens=     0  cost=$0.0000       1ms  What is your return policy?
+round 3  MISS  PRIVATE calls=2  tokens= 2,655  cost=$0.0027    4350ms  How do refunds work for gift cards?
+round 3  HIT   PUBLIC  calls=0  tokens=     0  cost=$0.0000       2ms  Does a gift card balance expire?
+round 3  HIT   PUBLIC  calls=0  tokens=     0  cost=$0.0000       2ms  My package says delivered but it isn't here. Wha
+round 3  HIT   PUBLIC  calls=0  tokens=     0  cost=$0.0000       1ms  Can I change the delivery address after ordering
+
+round 1 (cold):   5 asks  calls=10  tokens=13,251  cost=$0.0135  avg 4107 ms
+rounds 2-3:       10 asks  calls=4  tokens=5,349  cost=$0.0056  avg 819 ms  hits=8/10
+all 15 asks:      tokens=18,600  cost=$0.0191   vs no cache ≈ tokens=39,753 cost=$0.0404  -> saving 54% tokens

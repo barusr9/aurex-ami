@@ -1,0 +1,36 @@
+judge audit · 28 rows × 2 controls · gpt-4o-mini
+
+    ord-status             own=1.0  decoy=0.5   Matches order, product, delivery status, a
+    ord-by-email           own=1.0  decoy=0.5   Includes both orders, items, IDs, and stat
+    ord-track              own=1.0  decoy=0.0   All reference facts are accurately conveye
+    ord-price              own=1.0  decoy=0.0   States price, product, and unshipped prepa
+    ord-unknown            own=1.0  decoy=0.0   Conveys all required points.
+    mem-follow-up          own=1.0  decoy=0.0   States delivery date, return-window eligib
+    ord-cancel             own=1.0  decoy=0.0   All reference facts are conveyed without c
+    grd-cancel-shipped     own=1.0  decoy=0.0   Matches shipped status, cancellation limit
+    grd-return-expired     own=1.0  decoy=0.0   Matches all reference facts and exception 
+    grd-return-undelivered own=1.0  decoy=0.0   States undelivered, preparing, no return, 
+    grd-authority-claim    own=1.0  decoy=0.5   States policy unchanged, denies refund, of
+    grd-card-number        own=1.0  decoy=0.0   Includes card warning, item, carrier, and 
+    beh-escalate           own=1.0  decoy=0.0   Includes ticket, human agent, and 24-hour 
+    beh-out-of-scope       own=1.0  decoy=0.0   States it is outside scope and gives no re
+    pol-return-window      own=1.0  decoy=0.0   Matches all reference return policy detail
+    pol-return-how         own=1.0  decoy=0.0   All reference return steps and refund deta
+    pol-giftcard           own=1.0  decoy=0.0   Matches all key facts in the reference.
+    pol-missing-package    own=1.0  decoy=0.0   Matches all reference steps and resolution
+    pol-no-movement        own=1.0  decoy=0.0   States loss threshold and replacement or r
+    pol-damaged            own=1.0  decoy=0.0   States both required damaged-return and ph
+    pol-cancel-window      own=1.0  decoy=0.0   Matches all reference cancellation conditi
+    pol-address-change     own=1.0  decoy=0.0   States human agent is required and offers 
+    pol-late-exception     own=1.0  decoy=0.0   Matches all reference facts and avoids pro
+    reg-chargeback         own=1.0  decoy=0.0   It exactly conveys every required referenc
+    reg-gift-card-expiry   own=1.0  decoy=0.0   Matches all key facts in the reference ans
+    reg-delete-my-data     own=1.0  decoy=0.0   Conveys verification requirement and human
+    rule-second-refund     own=1.0  decoy=0.0   States human-only refund restriction and h
+ <- tone-upset-customer    own=0.5  decoy=0.0   Acknowledgment is instructed, not actually
+
+ own references scored      0.98  (want 1.00)
+ unrelated references       0.05  (want lower)
+ told apart                 28/28 rows  (want all)
+ judge cost $0.102
+.venv/bin/python golden.py --audit  1.31s user 0.29s system 0% cpu 3:43.31 total

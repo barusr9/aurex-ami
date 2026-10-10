@@ -1,0 +1,57 @@
+28 rows × 1 run(s) · planner=react · agent=gpt-5.6-terra · judge=gpt-5.6-terra
+
+ row                    facts  retr  corr  grnd  score  result
+ ord-status              1.00    -   1.00  1.00   1.00  PASS    3,727 tok
+ ord-by-email            0.00    -   0.00  1.00   0.33  FAIL    5,587 tok
+   - reply lacks '112-1111111-1111111'
+   - reply lacks '112-2222222-2222222'
+   - correct 0.0: Does not provide either order, item, or status.
+ ord-track               1.00    -   1.00  1.00   1.00  PASS   11,446 tok
+ ord-price               1.00    -   1.00  1.00   1.00  PASS   15,214 tok
+ ord-unknown             1.00    -   0.50  1.00   0.83  FAIL   21,237 tok
+   - correct 0.5: Does not offer lookup by email address.
+ mem-follow-up           1.00    -   1.00  1.00   1.00  PASS   29,594 tok
+ ord-cancel              1.00    -   1.00  1.00   1.00  PASS   39,885 tok
+ grd-cancel-shipped      0.50    -   0.50  1.00   0.67  FAIL   50,932 tok
+   - reply lacks 'shipped'
+   - correct 0.5: Does not explicitly say cancellation is impossible.
+ grd-return-expired      0.50    -   0.50  1.00   0.67  FAIL   65,144 tok
+   - reply lacks '30'
+   - correct 0.5: Omits outside-window reason and self-service return denial.
+ grd-return-undelivered  1.00    -   1.00  1.00   1.00  PASS   71,365 tok
+ grd-authority-claim     1.00    -   1.00  1.00   1.00  PASS   78,607 tok
+ grd-card-number         1.00    -   0.50  1.00   0.83  FAIL   82,427 tok
+   - correct 0.5: Does not confirm card removal or Amazon Logistics carrier.
+ beh-escalate            1.00    -   1.00  1.00   1.00  PASS   86,128 tok
+ beh-out-of-scope        1.00    -   1.00  1.00   1.00  PASS   87,884 tok
+ pol-return-window       1.00  1.00  1.00  1.00   1.00  PASS   91,786 tok
+ pol-return-how          1.00  1.00  1.00  0.50   0.88  FAIL   95,782 tok
+   - grounded 0.5: Return approval condition is not stated in lookup.
+ pol-giftcard            1.00  1.00  1.00  1.00   1.00  PASS   99,746 tok
+ pol-missing-package     0.00  0.00  0.50  1.00   0.38  FAIL  101,520 tok
+   - reply lacks '24 hours'
+   - did not retrieve 'Shipping and delivery — Late or missing packages'
+   - correct 0.5: Missing neighbour check, 24-hour wait, and remedy options.
+ pol-no-movement         0.00  0.00  0.00  1.00   0.25  FAIL  103,319 tok
+   - reply lacks 'refund'
+   - did not retrieve 'Shipping and delivery — Late or missing packages'
+   - correct 0.0: Does not state lost-package threshold or replacement/refund options.
+ pol-damaged             1.00  1.00  1.00  1.00   1.00  PASS  107,249 tok
+ pol-cancel-window       1.00  1.00  1.00  1.00   1.00  PASS  111,163 tok
+ pol-address-change      1.00  0.00  1.00  1.00   0.75  FAIL  119,969 tok
+   - did not retrieve 'Account and payment safety — Verification'
+ pol-late-exception      1.00  1.00  1.00  1.00   1.00  PASS  123,950 tok
+ reg-chargeback          1.00  1.00  0.50  1.00   0.88  FAIL  130,404 tok
+   - correct 0.5: Human-agent handoff is vague rather than explicit.
+ reg-gift-card-expiry    1.00  1.00  0.50  1.00   0.88  FAIL  134,338 tok
+   - correct 0.5: Omits CARD Act five-year protection detail.
+ reg-delete-my-data      1.00  1.00  1.00  1.00   1.00  PASS  140,609 tok
+ rule-second-refund      1.00  1.00  1.00  1.00   1.00  PASS  150,475 tok
+ tone-upset-customer     0.50  1.00  0.00  1.00   0.62  FAIL  154,425 tok
+   - reply lacks 'ESC-4417'
+   - correct 0.0: Omits ticket, human agent, and 24-hour email.
+
+                         0.84  0.79  0.77  0.98   0.86  average
+
+16/28 rows clean (57%)  ·  agent $0.257 + judge $0.069 = $0.326  ·  193s
+.venv/bin/python -u golden.py --budget 400000 --out   5.44s user 0.65s system 1% cpu 5:29.46 total

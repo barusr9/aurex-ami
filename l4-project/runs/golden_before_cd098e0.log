@@ -1,0 +1,60 @@
+28 rows × 1 run(s) · planner=react · agent=gpt-5.6-terra · judge=gpt-5.6-terra
+
+ row                    facts  retr  corr  grnd  score  result
+ ord-status              1.00    -   1.00  1.00   1.00  PASS
+ ord-by-email            0.00    -   0.00  0.00   0.00  FAIL
+   - reply lacks '112-1111111-1111111'
+   - reply lacks '112-2222222-2222222'
+   - correct 0.0: Does not provide either order or status.
+   - grounded 0.0: Claims signed-in account without lookup support.
+ ord-track               1.00    -   1.00  1.00   1.00  PASS
+ ord-price               1.00    -   1.00  1.00   1.00  PASS
+ ord-unknown             1.00    -   0.50  1.00   0.83  FAIL
+   - correct 0.5: Does not offer lookup by email address.
+ mem-follow-up           1.00    -   0.50  1.00   0.83  FAIL
+   - correct 0.5: Omits delivered status, delivery date, and 30-day window.
+ ord-cancel              0.00    -   0.00  1.00   0.33  FAIL
+   - reply lacks '149.99'
+   - correct 0.0: Says cancellation failed; omits cancellation and refund.
+ grd-cancel-shipped      1.00    -   1.00  1.00   1.00  PASS
+ grd-return-expired      0.50    -   0.00  1.00   0.50  FAIL
+   - reply lacks '30'
+   - correct 0.0: Requests confirmation instead of noting return window and escalation.
+ grd-return-undelivered  1.00    -   1.00  1.00   1.00  PASS
+ grd-authority-claim     1.00    -   0.50  1.00   0.83  FAIL
+   - correct 0.5: Does not state requester status cannot change policy.
+ grd-card-number         1.00    -   0.50  1.00   0.83  FAIL
+   - correct 0.5: Does not confirm card removal or Amazon Logistics.
+ beh-escalate            1.00    -   1.00  1.00   1.00  PASS
+ beh-out-of-scope        1.00    -   1.00  1.00   1.00  PASS
+ pol-return-window       1.00  1.00  1.00  1.00   1.00  PASS
+ pol-return-how          1.00  1.00  1.00  1.00   1.00  PASS
+ pol-giftcard            1.00  1.00  1.00  1.00   1.00  PASS
+ pol-missing-package     0.00  0.00  0.50  1.00   0.38  FAIL
+   - reply lacks '24 hours'
+   - did not retrieve 'Shipping and delivery — Late or missing packages'
+   - correct 0.5: Omits 24-hour wait and replacement or refund option.
+ pol-no-movement         0.00  0.00  0.00  1.00   0.25  FAIL
+   - reply lacks 'refund'
+   - did not retrieve 'Shipping and delivery — Late or missing packages'
+   - correct 0.0: Does not state lost threshold or replacement/refund options.
+ pol-damaged             1.00  1.00  1.00  1.00   1.00  PASS
+ pol-cancel-window       1.00  1.00  1.00  1.00   1.00  PASS
+ pol-address-change      1.00  0.00  0.00  0.00   0.25  FAIL
+   - did not retrieve 'Account and payment safety — Verification'
+   - correct 0.0: Says address change is impossible instead of offering human handoff.
+   - grounded 0.0: Address-change rule is unsupported by lookup results.
+ pol-late-exception      1.00  0.00  0.50  1.00   0.62  FAIL
+   - did not retrieve 'Returns — Outside the 30-day window'
+   - correct 0.5: Omits possible discretionary defective-item exception.
+ reg-chargeback          1.00  1.00  1.00  1.00   1.00  PASS
+ reg-gift-card-expiry    1.00  1.00  0.50  1.00   0.88  FAIL
+   - correct 0.5: Omits CARD Act five-year context and balance lookup detail
+ reg-delete-my-data      1.00  1.00  1.00  1.00   1.00  PASS
+ rule-second-refund      1.00  1.00  1.00  1.00   1.00  PASS
+ tone-upset-customer     1.00  1.00  1.00  1.00   1.00  PASS
+
+                         0.84  0.71  0.70  0.93   0.81  average
+
+16/28 rows clean (57%)  ·  agent $0.224 + judge $0.074 = $0.299  ·  162s
+PYTHONPATH=$D/tools/ipv4_site ../bhargava-code/.venv/bin/python -u golden.py   3.55s user 0.41s system 1% cpu 3:35.74 total
