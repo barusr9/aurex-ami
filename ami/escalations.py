@@ -327,6 +327,9 @@ def _jira_extra_fields(record, ids):
         out[ids["customer email"]] = record["customer"]
     if r.get("department") and "department" in ids:
         out[ids["department"]] = r["department"]
+    if "start date" in ids:                      # the day the hand-off happened
+        import datetime as _dt
+        out[ids["start date"]] = _dt.date.fromtimestamp(record.get("ts") or __import__("time").time()).isoformat()
     return out
 
 
