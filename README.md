@@ -150,7 +150,7 @@ docker run -p 8000:8000 --env-file .env \
 **Vercel (works, with limits)**
 
 The repo deploys as-is: `api/index.py` serves the same request handler as
-`web.py`, and `vercel.json` routes every path to it with a 60 s limit. In the
+`web.py`, and `vercel.json` routes every path to it (entry point declared in `pyproject.toml` under `[tool.vercel]`). In the
 Vercel project settings add the environment variables from `.env.example`
 (`OPENAI_API_KEY`, `OPENAI_BASE_URL`, `AUTH_SECRET_KEY`, and an escalation
 backend if you want hand-offs to reach a human). Know the limits before
