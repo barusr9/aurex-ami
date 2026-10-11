@@ -189,6 +189,8 @@ def stats():
     llm = [e for e in events if e["kind"] == "llm"]
     calls = [e for e in events if e["kind"] == "tool"]
     errors = [e for e in calls if not e["ok"]]
+    turn_ids = {e.get("turn") for e in turns}
+    llm_in_turns = [e for e in llm if e.get("turn") in turn_ids]
 
     return {
         "turns": len(turns),
@@ -215,4 +217,44 @@ def stats():
         ],
         "steps_per_turn": round(
             sum(e.get("steps", 0) for e in turns) / len(turns), 1) if turns else 0,
+        # --- Goal 1, cheaper and faster: the levers behind cost per turn ---
+        # Per-turn ratios count only events that belong to a web turn. The
+        # trace also holds CLI eval runs (session "cli", turn "-"), which log
+        # model calls but no turn events and would inflate every ratio.
+        "calls_per_turn": (round(len(llm_in_turns) / len(turns), 2) if turns else 0),
+        "cost_per_turn_web": (sum(e.get("cost") or 0 for e in llm_in_turns) / len(turns)
+                              if turns else 0),
+        # share of input tokens the proxy served from its prompt cache; this is
+        # what moves dollars when token counts do not (see READOUT, S1)
+        "cached_tokens": sum(e.get("cached") or 0 for e in llm),
+        "cached_pct": (round(100 * sum(e.get("cached") or 0 for e in llm)
+                             / sum(e.get("tokens_in") or 0 for e in llm))
+                       if sum(e.get("tokens_in") or 0 for e in llm) else 0),
+        "cache_hits": sum(1 for e in events if e["kind"] == "cache" and e.get("result") == "hit"),
+        "cache_misses": sum(1 for e in events if e["kind"] == "cache" and e.get("result") == "miss"),
+        "prefetches": sum(1 for e in events if e["kind"] == "prefetch" and e.get("turn") in turn_ids),
+        # --- Goal 2, catch it when it breaks: turns that ended in a hand-off ---
+        "degraded_turns": sum(1 for e in events if e["kind"] == "degraded"),
+        "degraded_rate": (round(100 * sum(1 for e in events if e["kind"] == "degraded"
+                                          and e.get("turn") in turn_ids)
+                                / len(turns), 1) if turns else 0),
     }
+
+
+def alert_status(stats_now=None):
+    """Every configured alert with its live value and whether it is breached.
+
+    Read-only companion to check_alerts(): the dashboard's Goals tab shows
+    this table, check_alerts() is what logs the transitions. A threshold of 0
+    means the alert is disabled and is reported as such.
+    """
+    from ami.config import config          # local import avoids a cycle
+    s = stats_now or stats()
+    rows = [
+        ("error_rate", "tool refusal / error rate", config.ALERT_ERROR_RATE_PCT, s["error_rate"], "%"),
+        ("cost_per_turn", "cost per turn", config.ALERT_COST_PER_TURN_USD, s["cost_per_turn"], "$"),
+        ("turn_p95_ms", "turn p95 latency", config.ALERT_P95_MS, s["turn_p95_ms"], "ms"),
+    ]
+    return [{"metric": m, "label": label, "threshold": th, "value": v, "unit": u,
+             "enabled": bool(th), "firing": bool(th) and v > th}
+            for m, label, th, v, u in rows]

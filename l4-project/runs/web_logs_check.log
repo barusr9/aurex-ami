@@ -1,0 +1,14 @@
+browser A
+    3.90s  steps=1  'What is your return policy?' -> 'The **Returns — Items that cannot be returned** policy says digital content, gift cards, d'
+browser B (new session, same question -> expect cache hit: 0 steps, ~ms)
+    0.00s  steps=0  'What is your return policy?' -> 'The **Returns — Items that cannot be returned** policy says digital content, gift cards, d'
+browser A (account question -> never cached)
+    3.54s  steps=1  "What's the status of order 111-2222222-2222222?" -> 'Your **MacBook Air M3 Case** order is **shipped** and is estimated to arrive on **October '
+
+/logs.json stats:
+  {"turns": 5, "llm_calls": 266, "tool_calls": 129, "tool_errors": 8, "error_rate": 6, "tokens": 346961, "tokens_in": 327463, "tokens_out": 19498, "cost": 0.565451, "cost_per_turn": 0.1130902, "turn_p50_ms": 3540, "turn_p95_ms": 5130, "llm_p50_ms": 1949, "by_tool": [{"tool": "search_knowledge", "calls": 57, "errors": 0}, {"tool": "get_order", "calls": 41, "errors": 4}, {"tool": "escalate", "calls": 17, "errors": 0}, {"tool": "track_package", "calls": 5, "errors": 0}, {"tool": "cancel_order", "calls": 5, "errors": 2}, {"tool": "find_orders", "calls": 2, "errors": 0}, {"tool": "start_return", "cal
+  null stats fields: none
+  turn  events:   5  sample={'ms': 3540, 'steps': 1, 'cost': 0.005179}  null fields: none
+  llm   events:  67  sample={'ms': 1873, 'tokens_in': 1604, 'tokens_out': 34, 'cost': 0.003616, 'served_by': 'gpt-5.6-terra-2026-07-09'}  null fields: none
+  tool  events:  27  sample={'tool': 'get_order', 'ms': 0, 'ok': True}  null fields: none
+  cache events:   4  sample={'result': 'hit'}  null fields: none

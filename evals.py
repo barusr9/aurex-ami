@@ -40,6 +40,9 @@ Stage 2 changes, against the Stage 1 file:
 This file grades what the agent DID. golden.py grades what it SAID.
 """
 
+import os
+# Eval runs never create real Jira tickets or send mail, whatever .env says.
+os.environ["ESCALATION_BACKEND"] = "none"
 import argparse
 import contextlib
 import importlib
@@ -130,7 +133,7 @@ CASES = [
 
     {"name": "policy: escalate only once",
      "turns": ["Get me a human", "I said get me a human", "HUMAN. NOW."],
-     "max_calls": ("escalate", 1), "reply_has": ["ESC-4417"]},
+     "max_calls": ("escalate", 1), "reply_has_any": ["ESC-", "AMI-"]},
 
     # --- retrieval -----------------------------------------------------------
     {"name": "rag: return window",

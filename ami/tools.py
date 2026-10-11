@@ -144,6 +144,16 @@ def eligibility(tool, order):
     return None
 
 
+def _back_office_ticket(kind, scope, order, summary, ticket_id=None):
+    """A completed return or cancellation still needs people (warehouse, refunds,
+    order management). Open a Jira ticket for them. Never affects the customer's
+    result: escalations.record_event swallows every failure."""
+    from ami import escalations             # local import: avoids a cycle via observe
+    facts = {k: order.get(k) for k in ("item", "status", "price", "delivered_on", "eta") if order.get(k) is not None}
+    escalations.record_event(kind, summary, customer=scope,
+                             orders={order["order_id"]: facts}, ticket_id=ticket_id)
+
+
 def cancel_order(order_id, scope=None, confirmed=False):
     """Cancel an order — only allowed before it ships. GUARDRAIL.
 
@@ -183,6 +193,9 @@ def cancel_order(order_id, scope=None, confirmed=False):
         }
 
     order["status"] = "cancelled"
+    _back_office_ticket("cancellation", scope, order,
+                        f"Customer cancelled order {order['order_id']} ({order['item']}); "
+                        f"refund ${order['price']} to the original payment method.")
     return {
         "cancelled": True,
         "order_id": order["order_id"],
@@ -228,9 +241,20 @@ def start_return(order_id, reason, scope=None, confirmed=False):
             "reason": reason,
         }
 
-    rma = f"RMA-{len(store.RETURNS) + 1001}"
+    # Continue from the highest RMA ever issued (the ticket log survives
+    # restarts; the demo store does not), so two returns never share a number.
+    from ami import escalations
+    issued = max(escalations._last_number("RMA-", 1001), 1000 + len(store.RETURNS))
+    rma = f"RMA-{issued + 1}"
+    while rma in store.RETURNS:
+        issued += 1
+        rma = f"RMA-{issued + 1}"
     store.RETURNS[rma] = {"order_id": order["order_id"], "reason": reason}
     order["status"] = "return started"
+    _back_office_ticket("return", scope, order,
+                        f"Return {rma} started for order {order['order_id']} ({order['item']}). "
+                        f"Reason given by the customer: {reason}. Refund ${order['price']} once the item is scanned.",
+                        ticket_id=rma)
     return {
         "rma": rma,
         "order_id": order["order_id"],
@@ -256,13 +280,34 @@ def search_knowledge(question):
                          for h in hits]}
 
 
-def escalate(summary):
-    """Hand off to a human. The honest answer when no other tool fits."""
+def escalate(summary, scope=None, context=None):
+    """Hand off to a human. The honest answer when no other tool fits.
+
+    Each call opens a unique ticket (recorded in state/escalations.jsonl) and
+    hands it to the configured backend; see ami/escalations.py. `scope` is
+    the logged-in customer, injected by run(), so the ticket names them.
+    """
+    from ami import escalations                 # local import: avoids a cycle via observe
+    if not scope:
+        # Governance: no ticket without a signed-in customer. The web gate
+        # normally stops a guest before this; this is the backstop.
+        return {"error": "Hand-off to a human needs the customer to log in first. "
+                         "Ask them to log in with the Log In button, then try again.",
+                "login_required": True}
+    record = escalations.open_ticket(summary, customer=scope, context=context)
+    ref = escalations.deliver(record)
+    # The customer is told the ESC number (decided 2026-10-10). The Jira key, when
+    # Jira accepted the ticket, travels alongside as jira_key for staff.
+    jira_key = escalations.jira_key(ref)
     return {
         "escalated": True,
-        "ticket": "ESC-4417",
+        "ticket": record["ticket"],
+        "local_ticket": record["ticket"],
+        **({"jira_key": jira_key} if jira_key else {}),
         "message": "A human agent will email you within 24 hours.",
         "summary": summary,
+        "routed_to": record["routing"]["department"],
+        **({"ref": ref} if ref else {}),
     }
 
 
@@ -361,9 +406,9 @@ def _dispatch(name, args, scope=None):
         return {"error": f"No such tool: {name}"}
     try:
         # Only inject scope into tools that need it (order access, modifications)
-        # search_knowledge, escalate don't need scope
+        # search_knowledge doesn't need scope; escalate takes it only to name the customer on the ticket
         scope_required_tools = {"find_orders", "get_order", "track_package",
-                                "cancel_order", "start_return"}
+                                "cancel_order", "start_return", "escalate"}
         if scope and name in scope_required_tools:
             args["scope"] = scope
         return fn(**args)

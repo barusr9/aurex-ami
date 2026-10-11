@@ -1,0 +1,5 @@
+Ami is running at http://localhost:4000   (ctrl-c to stop)
+/Users/shreenath22/Desktop/AI-Modern-L4-training-pt09252026/Project-Shree-Bhargava/bhargava-code/web.py:162: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "created_at": datetime.utcnow().isoformat(),
+/Users/shreenath22/Desktop/AI-Modern-L4-training-pt09252026/Project-Shree-Bhargava/bhargava-code/web.py:253: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  if datetime.utcnow() - session_time > timedelta(hours=SESSION_TIMEOUT_HOURS):

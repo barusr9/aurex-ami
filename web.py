@@ -10,6 +10,7 @@ One session per browser (cookie), one UI, one unified codebase.
 
 import json
 import os
+import re
 import uuid
 import threading
 from http.cookies import SimpleCookie
@@ -22,6 +23,7 @@ from ami import answer_cache
 from ami import dashboard
 from ami import observe
 from ami import planner
+from ami import tools
 from ami import policy
 from ami import route
 from ami.config import config
@@ -32,7 +34,8 @@ from ami.auth import authenticate_request, AuthError
 from ami.rate_limit import check_and_consume
 from ami.audit import log_action
 from ami.scope import derive_scope, ScopeError
-from ami.query_classifier import classify_query, requires_authentication, get_login_prompt
+from ami.query_classifier import (classify_query, requires_authentication, get_login_prompt,
+                                  is_handoff_request, get_handoff_login_prompt)
 from ami.users import verify_credentials
 from ami.auth import generate_token
 
@@ -163,7 +166,7 @@ def new_session(user_id=None):
     }
 
 
-def save_feedback(golden_row_id, original_response, corrected_response, reason):
+def save_feedback(golden_row_id, original_response, corrected_response, reason, **extra):
     try:
         FEEDBACK_FILE.parent.mkdir(exist_ok=True)
         feedback_entry = {
@@ -171,12 +174,26 @@ def save_feedback(golden_row_id, original_response, corrected_response, reason):
             "golden_row_id": golden_row_id,
             "original_response": original_response,
             "corrected_response": corrected_response,
-            "reason": reason
+            "reason": reason,
+            **{k: v for k, v in extra.items() if v not in (None, "")},
         }
         with open(FEEDBACK_FILE, "a") as f:
             f.write(json.dumps(feedback_entry) + "\n")
     except OSError:
         pass
+
+
+def preload_account(work, user_id):
+    """Signed in: load the customer's own orders into working memory once, so
+    'my earphones' or 'my last order' resolve without asking for an order number.
+    Same tool, same scope check as when the agent asks; done in the web layer so
+    the frozen eval suite (which drives the agent directly) is unchanged."""
+    if not user_id or work.customer_email:
+        return
+    result = tools.run("find_orders", {"email": user_id}, scope=user_id)
+    work.record("find_orders", {"email": user_id}, result)
+    observe.log("prefetch", tool="find_orders", ok="error" not in result,
+                orders=len(result.get("orders", [])))
 
 
 def state(session, user_id=None):
@@ -212,6 +229,7 @@ def state(session, user_id=None):
         "longterm": LONGTERM.recall(work.customer_email, getattr(work, "session_id", None)) if user_id else None,
         "history": history,
         "greeting": greeting,
+        "user": user_id,          # who is logged in (None for a guest): drives Log in / Log out
     }
 
 
@@ -291,6 +309,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Set-Cookie",
                            f"auth_token={cookie_value}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=900")
             self._set_auth_cookie = None
+        if getattr(self, "_clear_auth_cookie", False):
+            # Log out: the auth cookie is HttpOnly, so only the server can expire it.
+            self.send_header("Set-Cookie",
+                           "auth_token=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0")
+            self._clear_auth_cookie = False
         self.end_headers()
         self.wfile.write(payload)
 
@@ -324,6 +347,7 @@ class Handler(BaseHTTPRequestHandler):
                 except AuthError:
                     pass
                 _, session = self._session(user_id=user_id)
+                preload_account(session["work"], user_id)
                 self._send(json.dumps({**state(session, user_id), "stale": self.stale}))
                 return
 
@@ -342,9 +366,11 @@ class Handler(BaseHTTPRequestHandler):
 
             user_id, _ = self._authenticate()
             if path == "/logs.json":
-                self._send(json.dumps({"stats": observe.stats(),
+                stats_now = observe.stats()
+                self._send(json.dumps({"stats": stats_now,
                                        "events": observe.recent(120),
-                                       "alerts": observe.recent(20, kind="alert")}))
+                                       "alerts": observe.recent(20, kind="alert"),
+                                       "alert_status": observe.alert_status(stats_now)}))
             elif path == "/trace.jsonl":
                 try:
                     self._send(observe.LOGFILE.read_text(), "text/plain")
@@ -390,8 +416,9 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 user_id, _ = self._authenticate()
             except AuthError:
-                # For /chat, auth is optional (query_type determines if it's needed)
-                if self.path != "/chat":
+                # For /chat and /reset, auth is optional: a guest can chat about
+                # public topics and can always start over.
+                if self.path not in ("/chat", "/reset"):
                     self.send_error(401, "Authentication required")
                     return
 
@@ -412,6 +439,7 @@ class Handler(BaseHTTPRequestHandler):
                     # User is logged out; new_session with user_id=None starts fresh
                     SESSIONS[sid] = new_session(user_id=None)
                     save_sessions()
+                    self._clear_auth_cookie = True       # and log the browser out
                     log_action(user_id, "reset", status="success", http_status=200,
                               query_type="PRIVATE" if user_id else "PUBLIC",
                               details={"ip": self.client_address[0]})
@@ -425,8 +453,18 @@ class Handler(BaseHTTPRequestHandler):
                     corrected_response = data.get("corrected_response", "").strip()
                     reason = data.get("reason", "").strip()
 
-                    if original_response and corrected_response:
-                        save_feedback(golden_row_id, original_response, corrected_response, reason)
+                    # Per-reply rating from the chat (thumbs up / down, optional reason
+                    # and correction), or the older correction form (both texts).
+                    rating = (data.get("rating") or "").strip().lower()
+                    if rating not in ("up", "down"):
+                        rating = ""
+                    category = (data.get("category") or "").strip()[:40]
+                    user_message = (data.get("user_message") or "").strip()[:1000]
+                    if original_response and (corrected_response or rating):
+                        save_feedback(golden_row_id, original_response[:4000], corrected_response[:4000],
+                                      reason[:1000], rating=rating, category=category,
+                                      issue=reason[:200] or category, user_message=user_message,
+                                      user_id=user_id)
                         log_action(user_id, "feedback", status="success", http_status=200,
                                   query_type="PRIVATE" if user_id else "PUBLIC",
                                   details={"ip": self.client_address[0]})
@@ -448,6 +486,19 @@ class Handler(BaseHTTPRequestHandler):
                     log_action(user_id, "chat", status="success", http_status=200,
                               query_type=query_type, details={"ip": self.client_address[0]})
                     self._send(json.dumps({"reply": "", "steps": [], **state(session, user_id)}))
+                    return
+
+                # Hand-off to a human requires login (confidentiality: a ticket
+                # carries the customer's identity and conversation).
+                if is_handoff_request(text) and not user_id:
+                    log_action(None, "chat", status="login_required", http_status=403,
+                              query_type="PRIVATE", details={"ip": self.client_address[0], "reason": "handoff", "message_preview": text[:100]})
+                    self._send(json.dumps({
+                        "reply": get_handoff_login_prompt(),
+                        "requires_login": True,
+                        "steps": [],
+                        **state(session, user_id)
+                    }))
                     return
 
                 # Classify query
@@ -484,6 +535,7 @@ class Handler(BaseHTTPRequestHandler):
 
                 observe.context(session=sid, user_id=user_id)
                 turn_id = observe.new_turn()
+                preload_account(work, user_id)
 
                 # Policy: input check — BEFORE the text enters memory, so a
                 # pasted card number is scrubbed before the model ever sees it.
@@ -549,8 +601,17 @@ class Handler(BaseHTTPRequestHandler):
                           query_type=query_type,
                           details={"ip": self.client_address[0], "duration_ms": t.ms,
                                   "model_cost_usd": observe.turn_cost(turn_id)})
+                # Show the Log In button whenever a guest is being asked to log in:
+                # a step refused for lack of login, or the reply itself says so.
+                # The front-door gate catches the obvious requests; this catches
+                # typos ("humna", "resturn") and the agent's own login prompts.
+                needs_login = (not user_id) and (
+                    any(isinstance(st, dict) and isinstance(st.get("observation"), dict)
+                        and st["observation"].get("login_required") for st in steps)
+                    or bool(re.search(r"\b(log ?in|sign ?in)\b", reply or "", re.I)))
                 self._send(json.dumps({"reply": reply, "steps": steps,
                                       "new_actions": work.actions[before:],
+                                      **({"requires_login": True} if needs_login else {}),
                                       **state(session, user_id)}))
 
             except Exception as e:

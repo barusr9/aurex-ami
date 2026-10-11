@@ -33,7 +33,13 @@ _ORDER = re.compile(r"^\d{3}-\d{7}-\d{7}$")     # 17 digits too — but not a ca
 _INJECTION = re.compile(
     r"(ignore (all |your )?(previous|prior|above) instructions|developer mode|"
     r"system prompt|you are now|jailbreak|act as (an? )?(admin|root))", re.I)
-_IDENT = re.compile(r"\b(ESC-\d+|RMA-\d+|\d{3}-\d{7}-\d{7})\b")
+def _ident_pattern():
+    from ami.config import config            # local import keeps policy import-light
+    jira = re.escape(config.JIRA_PROJECT) + r"-\d+|" if getattr(config, "JIRA_PROJECT", "") else ""
+    return re.compile(r"\b(" + jira + r"ESC-\d+|RMA-\d+|\d{3}-\d{7}-\d{7})\b")
+
+
+_IDENT = _ident_pattern()
 
 
 # --------------------------------------------------------------------------
@@ -90,6 +96,19 @@ def guarded_run(name, args, work):
         return {"escalated": True, "ticket": work.escalation,
                 "message": "Already escalated in this conversation; refer the "
                            "customer to this existing ticket."}
+
+    # The ticket carries what the agent actually looked up this session, so a
+    # human starts from facts. Built here from working memory; anything the
+    # model put in `context` is dropped (it writes its own tool arguments).
+    args.pop("context", None)
+    if name == "escalate":
+        args["context"] = {
+            "orders": {oid: {k: o.get(k) for k in ("item", "status", "eta", "delivered_on", "price")
+                             if o.get(k) is not None}
+                       for oid, o in work.orders.items()},
+            "refused": list(work.failures)[-3:],
+            "done": list(work.actions)[-3:],
+        }
 
     # Rule: state-changing tools need a confirmation from a LATER turn.
     if name in CONFIRM_TOOLS:

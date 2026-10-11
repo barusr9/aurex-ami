@@ -55,3 +55,17 @@ def fake_llm(monkeypatch):
         if name == "ami.llm" or (name.startswith("ami.") and hasattr(module, "complete")):
             monkeypatch.setattr(module, "complete", fake)
     return fake
+
+
+@pytest.fixture(autouse=True)
+def no_real_escalation_backend(monkeypatch, tmp_path):
+    """Unit tests never deliver tickets to a real Jira, inbox or webhook,
+    whatever the developer's .env says. Tests that exercise a backend patch
+    escalations.config with their own settings and fake the network."""
+    import dataclasses
+    from ami import escalations
+    # config is a frozen dataclass: swap in a copy with the backend off
+    monkeypatch.setattr(escalations, "config",
+                        dataclasses.replace(escalations.config, ESCALATION_BACKEND="none"))
+    # and never append to the real state/escalations.jsonl
+    monkeypatch.setattr(escalations, "FILE", tmp_path / "escalations.jsonl")

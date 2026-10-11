@@ -161,6 +161,23 @@ def _schemas_with_thought():
 SCHEMAS = _schemas_with_thought()
 
 
+def _promise_followup(work, why):
+    """DEGRADED_REPLY tells the customer a human will follow up. Make that true:
+    open a system-failure ticket for a signed-in customer, once per conversation
+    (it counts as this conversation's escalation)."""
+    if not getattr(work, "scope", None) or getattr(work, "escalation", None):
+        return
+    from ami import escalations             # local import: avoids a cycle
+    orders = {oid: {k: o.get(k) for k in ("item", "status", "eta") if o.get(k) is not None}
+              for oid, o in getattr(work, "orders", {}).items()}
+    rec = escalations.record_event(
+        "system-failure", f"Ami could not complete the customer's request: {why}. "
+        "The customer was told a human agent will follow up.", customer=work.scope, orders=orders)
+    if rec:
+        work.escalation = rec["ticket"]
+        work.actions.append(f"Escalated to a human, ticket {rec['ticket']} (system failure)")
+
+
 def react(convo, work, trace=True, steps=None, extra=None, model=None,
           longterm=None):
     """Run the ReAct loop until the agent produces an answer for the customer.
@@ -194,6 +211,7 @@ def react(convo, work, trace=True, steps=None, extra=None, model=None,
         if TURN_BUDGET_SECONDS and (time.perf_counter() - t0) > TURN_BUDGET_SECONDS:
             observe.log("degraded", reason="turn_budget_exceeded",
                         budget_s=TURN_BUDGET_SECONDS, step=step)
+            _promise_followup(work, "turn time budget exceeded")
             return DEGRADED_REPLY
 
         # Working memory is re-read before EVERY step, so the agent plans
@@ -209,6 +227,7 @@ def react(convo, work, trace=True, steps=None, extra=None, model=None,
             # customer gets an honest handoff, not a crash or a stack trace.
             observe.log("degraded", reason="model_error", step=step,
                         error=f"{type(e).__name__}: {str(e)[:200]}")
+            _promise_followup(work, f"model or gateway error ({type(e).__name__})")
             return DEGRADED_REPLY
         message = response.choices[0].message
         convo.add_assistant(message.model_dump(exclude_none=True))
