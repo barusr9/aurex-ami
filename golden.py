@@ -47,6 +47,9 @@ Stage 2 changes, against the Stage 1 file: --planner plan replaces
 number) plus a confirmation turn on the rows that change an order.
 """
 
+import os
+# Eval runs never create real Jira tickets or send mail, whatever .env says.
+os.environ["ESCALATION_BACKEND"] = "none"
 import argparse
 import json
 import re

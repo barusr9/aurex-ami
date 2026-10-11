@@ -10,6 +10,7 @@ One session per browser (cookie), one UI, one unified codebase.
 
 import json
 import os
+import re
 import uuid
 import threading
 from http.cookies import SimpleCookie
@@ -293,6 +294,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Set-Cookie",
                            f"auth_token={cookie_value}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=900")
             self._set_auth_cookie = None
+        if getattr(self, "_clear_auth_cookie", False):
+            # Log out: the auth cookie is HttpOnly, so only the server can expire it.
+            self.send_header("Set-Cookie",
+                           "auth_token=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0")
+            self._clear_auth_cookie = False
         self.end_headers()
         self.wfile.write(payload)
 
@@ -394,8 +400,9 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 user_id, _ = self._authenticate()
             except AuthError:
-                # For /chat, auth is optional (query_type determines if it's needed)
-                if self.path != "/chat":
+                # For /chat and /reset, auth is optional: a guest can chat about
+                # public topics and can always start over.
+                if self.path not in ("/chat", "/reset"):
                     self.send_error(401, "Authentication required")
                     return
 
@@ -416,6 +423,7 @@ class Handler(BaseHTTPRequestHandler):
                     # User is logged out; new_session with user_id=None starts fresh
                     SESSIONS[sid] = new_session(user_id=None)
                     save_sessions()
+                    self._clear_auth_cookie = True       # and log the browser out
                     log_action(user_id, "reset", status="success", http_status=200,
                               query_type="PRIVATE" if user_id else "PUBLIC",
                               details={"ip": self.client_address[0]})
@@ -576,8 +584,17 @@ class Handler(BaseHTTPRequestHandler):
                           query_type=query_type,
                           details={"ip": self.client_address[0], "duration_ms": t.ms,
                                   "model_cost_usd": observe.turn_cost(turn_id)})
+                # Show the Log In button whenever a guest is being asked to log in:
+                # a step refused for lack of login, or the reply itself says so.
+                # The front-door gate catches the obvious requests; this catches
+                # typos ("humna", "resturn") and the agent's own login prompts.
+                needs_login = (not user_id) and (
+                    any(isinstance(st, dict) and isinstance(st.get("observation"), dict)
+                        and st["observation"].get("login_required") for st in steps)
+                    or bool(re.search(r"\b(log ?in|sign ?in)\b", reply or "", re.I)))
                 self._send(json.dumps({"reply": reply, "steps": steps,
                                       "new_actions": work.actions[before:],
+                                      **({"requires_login": True} if needs_login else {}),
                                       **state(session, user_id)}))
 
             except Exception as e:

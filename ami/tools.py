@@ -144,6 +144,16 @@ def eligibility(tool, order):
     return None
 
 
+def _back_office_ticket(kind, scope, order, summary, ticket_id=None):
+    """A completed return or cancellation still needs people (warehouse, refunds,
+    order management). Open a Jira ticket for them. Never affects the customer's
+    result: escalations.record_event swallows every failure."""
+    from ami import escalations             # local import: avoids a cycle via observe
+    facts = {k: order.get(k) for k in ("item", "status", "price", "delivered_on", "eta") if order.get(k) is not None}
+    escalations.record_event(kind, summary, customer=scope,
+                             orders={order["order_id"]: facts}, ticket_id=ticket_id)
+
+
 def cancel_order(order_id, scope=None, confirmed=False):
     """Cancel an order — only allowed before it ships. GUARDRAIL.
 
@@ -183,6 +193,9 @@ def cancel_order(order_id, scope=None, confirmed=False):
         }
 
     order["status"] = "cancelled"
+    _back_office_ticket("cancellation", scope, order,
+                        f"Customer cancelled order {order['order_id']} ({order['item']}); "
+                        f"refund ${order['price']} to the original payment method.")
     return {
         "cancelled": True,
         "order_id": order["order_id"],
@@ -231,6 +244,10 @@ def start_return(order_id, reason, scope=None, confirmed=False):
     rma = f"RMA-{len(store.RETURNS) + 1001}"
     store.RETURNS[rma] = {"order_id": order["order_id"], "reason": reason}
     order["status"] = "return started"
+    _back_office_ticket("return", scope, order,
+                        f"Return {rma} started for order {order['order_id']} ({order['item']}). "
+                        f"Reason given by the customer: {reason}. Refund ${order['price']} once the item is scanned.",
+                        ticket_id=rma)
     return {
         "rma": rma,
         "order_id": order["order_id"],

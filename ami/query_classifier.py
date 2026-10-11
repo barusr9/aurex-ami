@@ -39,6 +39,8 @@ HANDOFF_KEYWORDS = [
     "human", "real person", "live person", "live agent", "a person",
     "speak to someone", "talk to someone", "speak with someone", "talk with someone",
     "representative", "escalate", "supervisor", "support agent", "customer service agent",
+    # common typos seen in testing
+    "humna", "huamn", "humen", "hooman", "real persn", "live agnet",
 ]
 
 

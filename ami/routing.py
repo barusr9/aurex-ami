@@ -73,19 +73,38 @@ def route(summary, orders=None, path=None):
         chosen = _row(rows, DEFAULT_CATEGORY) or rows[-1]
 
     out = dict(chosen, next_steps=list(chosen["next_steps"]))
-    # Order facts make the first step concrete: which order, what state.
-    for oid, o in orders.items():
-        status = o.get("status")
+    step = _order_step(orders)
+    if step:
+        out["next_steps"].insert(0, step)
+    out["orders"] = orders
+    return out
+
+
+def _order_step(orders):
+    """'Start from order X, item, status, ETA' for the first order looked up."""
+    for oid, o in (orders or {}).items():
         bits = [f"order {oid}"]
         if o.get("item"):
             bits.append(o["item"])
-        if status:
-            bits.append(f"status {status}")
+        if o.get("status"):
+            bits.append(f"status {o['status']}")
         if o.get("eta"):
             bits.append(f"ETA {o['eta']}")
         if o.get("delivered_on"):
             bits.append(f"delivered {o['delivered_on']}")
-        out["next_steps"].insert(0, "Start from " + ", ".join(bits))
-        break                                         # the first order the agent looked up
-    out["orders"] = orders
+        return "Start from " + ", ".join(bits)
+    return None
+
+
+def route_category(category, orders=None, path=None):
+    """The matrix row for a known category (returns, cancellations, failures),
+    with the same order-specific first step as route(). None if not in the matrix."""
+    row = _row(load_matrix(path), category)
+    if row is None:
+        return None
+    out = dict(row, next_steps=list(row["next_steps"]), orders=orders or {})
+    step = _order_step(orders)
+    if step:
+        out["next_steps"].insert(0, step)
     return out
+
