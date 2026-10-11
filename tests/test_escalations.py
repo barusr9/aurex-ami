@@ -21,6 +21,7 @@ from ami import escalations, observe, policy, tools
 @pytest.fixture(autouse=True)
 def tmp_tickets(tmp_state, tmp_path, monkeypatch):
     monkeypatch.setattr(escalations, "FILE", tmp_path / "state" / "escalations.jsonl")
+    monkeypatch.setattr(escalations, "_JIRA_FIELDS", {})
     yield
 
 
@@ -116,8 +117,16 @@ class _Resp(io.BytesIO):
     def __exit__(self, *a): return False
 
 
-def _fake_urlopen(status=200, body=b"{}", capture=None, raise_=None):
+def _fake_urlopen(status=200, body=b"{}", capture=None, raise_=None, meta=None):
+    """POSTs are captured and answered with `body`; Jira createmeta GETs are
+    answered from `meta` (a list of field names), or with no fields."""
     def urlopen(req, timeout=None):
+        if req.data is None:                       # a GET: Jira field lookup
+            if "issuetypes/" in req.full_url:
+                fields = [{"name": n, "fieldId": f"customfield_{i}" if n != "Priority" else "priority"}
+                          for i, n in enumerate(meta or [])]
+                return _Resp(json.dumps({"fields": fields}).encode())
+            return _Resp(json.dumps({"issueTypes": [{"id": "10003", "name": "Task"}]}).encode())
         if capture is not None:
             capture.append({"url": req.full_url, "body": json.loads(req.data.decode()),
                             "headers": dict(req.headers), "timeout": timeout})
@@ -269,3 +278,42 @@ class TestPolicyKnowsJiraKeys:
                                                  "message": "m", "summary": "x"})
         out = policy.check_output("Your ticket is AMI-7, not AMI-99.", w)
         assert "AMI-7" in out and "AMI-99" not in out and "[unverified]" in out
+
+
+class TestJiraFields:
+    """Priority, Department, Order number and Customer email are filled when the
+    Jira project has those fields; looked up by name, skipped when absent."""
+
+    def _cfg(self):
+        return _cfg(ESCALATION_BACKEND="jira", JIRA_URL="https://team.atlassian.net",
+                    JIRA_EMAIL="me@example.com", JIRA_API_TOKEN="tok", JIRA_PROJECT="AMI")
+
+    def test_fields_filled_and_priority_label_dropped(self, monkeypatch):
+        monkeypatch.setattr(escalations, "config", self._cfg())
+        called = []
+        monkeypatch.setattr(escalations.urllib.request, "urlopen", _fake_urlopen(
+            body=b'{"key": "AMI-20"}', capture=called,
+            meta=["Summary", "Priority", "Order number", "Customer Email", "Department"]))
+        orders = {"111-2222222-2222222": {"item": "Case", "status": "shipped", "eta": "2026-10-12"}}
+        rec = escalations.open_ticket("order is late", customer="demo1@cofy.ai", context={"orders": orders})
+        assert escalations.deliver(rec) == "AMI-20"
+        f = called[0]["body"]["fields"]
+        assert f["priority"] == {"name": "High"}
+        assert f["customfield_2"] == "111-2222222-2222222"       # Order number
+        assert f["customfield_3"] == "demo1@cofy.ai"             # Customer Email
+        assert f["customfield_4"] == "Logistics & Fulfilment"    # Department
+        assert not any(l.startswith("priority-") for l in f["labels"])
+
+    def test_missing_fields_are_skipped_and_label_kept(self, monkeypatch):
+        monkeypatch.setattr(escalations, "config", self._cfg())
+        called = []
+        monkeypatch.setattr(escalations.urllib.request, "urlopen",
+                            _fake_urlopen(body=b'{"key": "AMI-21"}', capture=called, meta=["Summary"]))
+        rec = escalations.open_ticket("order is late", customer="demo1@cofy.ai")
+        assert escalations.deliver(rec) == "AMI-21"
+        f = called[0]["body"]["fields"]
+        assert "priority" not in f and "priority-high" in f["labels"]
+
+    def test_normal_priority_maps_to_medium(self):
+        rec = {"routing": {"priority": "Normal"}, "orders": {}}
+        assert escalations._jira_extra_fields(rec, {"priority": "priority"})["priority"] == {"name": "Medium"}
