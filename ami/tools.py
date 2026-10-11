@@ -241,7 +241,14 @@ def start_return(order_id, reason, scope=None, confirmed=False):
             "reason": reason,
         }
 
-    rma = f"RMA-{len(store.RETURNS) + 1001}"
+    # Continue from the highest RMA ever issued (the ticket log survives
+    # restarts; the demo store does not), so two returns never share a number.
+    from ami import escalations
+    issued = max(escalations._last_number("RMA-", 1001), 1000 + len(store.RETURNS))
+    rma = f"RMA-{issued + 1}"
+    while rma in store.RETURNS:
+        issued += 1
+        rma = f"RMA-{issued + 1}"
     store.RETURNS[rma] = {"order_id": order["order_id"], "reason": reason}
     order["status"] = "return started"
     _back_office_ticket("return", scope, order,
