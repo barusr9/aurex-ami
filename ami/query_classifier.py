@@ -32,6 +32,22 @@ PRIVATE_KEYWORDS = {
     ],
 }
 
+# Asking for a human hand-off. Escalation creates a support ticket that carries
+# the customer's identity and conversation, so it is account-specific by
+# governance: guests are asked to log in first (see web.py, tools.escalate).
+HANDOFF_KEYWORDS = [
+    "human", "real person", "live person", "live agent", "a person",
+    "speak to someone", "talk to someone", "speak with someone", "talk with someone",
+    "representative", "escalate", "supervisor", "support agent", "customer service agent",
+]
+
+
+def is_handoff_request(message: str) -> bool:
+    """True when the customer is asking to be handed to a person."""
+    m = (message or "").lower()
+    return any(k in m for k in HANDOFF_KEYWORDS)
+
+
 # Keywords that indicate PUBLIC (generic) queries
 PUBLIC_KEYWORDS = {
     "policy": ["policy", "return policy", "shipping policy", "refund policy", "warranty"],
@@ -106,3 +122,14 @@ def get_login_prompt() -> str:
         "Please log in to access your account information. "
         "You can ask me about policies and general questions without logging in."
     )
+
+
+def get_handoff_login_prompt() -> str:
+    """What a guest sees when they ask for a human."""
+    return (
+        "I can connect you with a human agent once you're logged in. "
+        "Support tickets include your account details and this conversation, "
+        "so for confidentiality we only open them for signed-in customers. "
+        "Please log in and ask again."
+    )
+

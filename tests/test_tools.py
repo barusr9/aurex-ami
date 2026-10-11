@@ -229,14 +229,20 @@ class TestEscalate:
     """escalate hands off to a human."""
 
     def test_escalate_returns_ticket(self, fresh_store):
-        result = tools.escalate("Customer is very upset")
+        result = tools.escalate("Customer is very upset", scope="raj@example.com")
         assert result["escalated"] is True
         assert "ticket" in result
         assert result["ticket"].startswith("ESC-")
 
+    def test_escalate_refuses_without_login(self, fresh_store):
+        """Governance: no ticket for a guest; the tool says log in first."""
+        result = tools.escalate("Customer is very upset")
+        assert result.get("login_required") is True
+        assert "error" in result and "ticket" not in result
+
     def test_escalate_includes_summary(self, fresh_store):
         summary = "Order never arrived"
-        result = tools.escalate(summary)
+        result = tools.escalate(summary, scope="raj@example.com")
         assert result["summary"] == summary
 
 
@@ -249,7 +255,7 @@ class TestToolRunObservation:
         assert "error" in result
 
     def test_run_marks_success_when_no_error(self, fresh_store):
-        result = tools.run("escalate", {"summary": "test"})
+        result = tools.run("escalate", {"summary": "test"}, scope="raj@example.com")
         assert isinstance(result, dict)
         # If no error, the result should still be a dict with the tool's response
         assert "escalated" in result

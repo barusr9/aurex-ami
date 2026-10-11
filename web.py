@@ -32,7 +32,8 @@ from ami.auth import authenticate_request, AuthError
 from ami.rate_limit import check_and_consume
 from ami.audit import log_action
 from ami.scope import derive_scope, ScopeError
-from ami.query_classifier import classify_query, requires_authentication, get_login_prompt
+from ami.query_classifier import (classify_query, requires_authentication, get_login_prompt,
+                                  is_handoff_request, get_handoff_login_prompt)
 from ami.users import verify_credentials
 from ami.auth import generate_token
 
@@ -450,6 +451,19 @@ class Handler(BaseHTTPRequestHandler):
                     log_action(user_id, "chat", status="success", http_status=200,
                               query_type=query_type, details={"ip": self.client_address[0]})
                     self._send(json.dumps({"reply": "", "steps": [], **state(session, user_id)}))
+                    return
+
+                # Hand-off to a human requires login (confidentiality: a ticket
+                # carries the customer's identity and conversation).
+                if is_handoff_request(text) and not user_id:
+                    log_action(None, "chat", status="login_required", http_status=403,
+                              query_type="PRIVATE", details={"ip": self.client_address[0], "reason": "handoff", "message_preview": text[:100]})
+                    self._send(json.dumps({
+                        "reply": get_handoff_login_prompt(),
+                        "requires_login": True,
+                        "steps": [],
+                        **state(session, user_id)
+                    }))
                     return
 
                 # Classify query
