@@ -75,6 +75,23 @@
   .feedback-submit:hover { border-color:var(--accent); }
   .feedback-status { font-size:12px; color:var(--dim); margin-top:6px; }
 
+  /* Per-reply feedback, like a production support chat. */
+  .rate { display:flex; align-items:center; gap:6px; margin-top:4px; font-size:11px; color:var(--dim); }
+  .rate button { margin:0; background:transparent; border:1px solid transparent; border-radius:6px;
+                 padding:2px 6px; font-size:13px; line-height:1; cursor:pointer; color:var(--dim); }
+  .rate button:hover { border-color:var(--line); }
+  .rate button.on { border-color:var(--accent); }
+  .rate .thanks { color:var(--ok); }
+  .why { margin-top:6px; padding:10px; border:1px solid var(--line); border-radius:8px; background:#12151c; }
+  .why .chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .why .chip { margin:0; font-size:12px; padding:4px 10px; border-radius:999px; background:#1d2230; }
+  .why .chip.on { border-color:var(--accent); color:var(--txt); }
+  .why textarea { width:100%; min-height:52px; resize:vertical; background:#0f1115; color:var(--txt);
+                  border:1px solid var(--line); border-radius:6px; padding:8px 10px; font:inherit; font-size:12px; }
+  .why textarea:focus { outline:none; border-color:var(--accent); }
+  .why .row { display:flex; gap:8px; justify-content:flex-end; margin-top:8px; }
+  .why .row button { margin:0; font-size:12px; }
+
   /* Agent internals panel: light theme. The chat stays dark; the panel that
      explains the agent reads like a document. Colours re-tuned for contrast on
      white (WCAG AA): darker green/red/blue/amber than the dark-theme values. */
@@ -97,7 +114,7 @@
 </style>
 
 <div class="col" id="left">
-  <header><b>Ami</b><span>__MODEL__</span>
+  <header><b>Ami</b><span>Customer support</span>
     <button onclick="reset()">Reset session</button></header>
   <div id="activity"></div>
   <div id="chat"></div>
@@ -105,18 +122,6 @@
     <input id="box" autocomplete="off" placeholder="Ask about an order…" autofocus>
     <button type="submit" style="margin:0">Send</button>
   </form>
-  <div class="feedback-form">
-    <h4>Was that answer wrong?</h4>
-    <div class="feedback-form-row">
-      <input id="fbOriginal" placeholder="What did Ami say?" autocomplete="off">
-    </div>
-    <div class="feedback-form-row">
-      <input id="fbCorrected" placeholder="What should it have said?" autocomplete="off">
-    </div>
-    <textarea id="fbReason" placeholder="Why? (optional)"></textarea>
-    <button class="feedback-submit" onclick="submitFeedback()">Submit correction</button>
-    <div id="feedbackStatus" class="feedback-status"></div>
-  </div>
 </div>
 
 <div class="col" id="right">
@@ -150,12 +155,69 @@ function render(text) {
   return safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 }
 
-function bubble(who, text) {
+// ---- per-reply feedback ------------------------------------------------
+let lastUserText = '';
+const REASONS = [['wrong_info', 'Wrong information'], ['didnt_answer', "Didn't answer my question"],
+                 ['not_helpful', 'Not helpful'], ['other', 'Other']];
+
+async function sendRating(payload) {
+  try {
+    const r = await fetch('/feedback', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                        body: JSON.stringify(payload)});
+    if (r.status === 401) return 'login';
+    return (await r.json()).ok;
+  } catch (e) { return false; }
+}
+
+function addRating(msgEl, replyText) {
+  const asked = lastUserText;
+  const row = document.createElement('div');
+  row.className = 'rate';
+  row.innerHTML = '<span>Helpful?</span><button title="Helpful" aria-label="Helpful">👍</button>' +
+                  '<button title="Not helpful" aria-label="Not helpful">👎</button>';
+  const [up, down] = row.querySelectorAll('button');
+  const done = text => { row.innerHTML = '<span class="thanks"></span>'; row.firstChild.textContent = text; };
+  up.onclick = async () => {
+    up.classList.add('on');
+    const ok = await sendRating({rating: 'up', original_response: replyText, user_message: asked});
+    done(ok === 'login' ? 'Log in to leave feedback.' : ok ? 'Thanks for the feedback.' : "Couldn't save that, please try again.");
+  };
+  down.onclick = () => {
+    if (msgEl.querySelector('.why')) return;
+    down.classList.add('on');
+    const box = document.createElement('div');
+    box.className = 'why';
+    box.innerHTML = '<div class="chips"></div><textarea placeholder="What should it have said? (optional)"></textarea>' +
+                    '<div class="row"><button class="cancel">Cancel</button><button class="send">Send feedback</button></div>';
+    let category = '';
+    for (const [id, label] of REASONS) {
+      const c = document.createElement('button');
+      c.className = 'chip'; c.textContent = label;
+      c.onclick = () => { category = id; box.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); };
+      box.querySelector('.chips').append(c);
+    }
+    box.querySelector('.cancel').onclick = () => { box.remove(); down.classList.remove('on'); };
+    box.querySelector('.send').onclick = async () => {
+      const corrected = box.querySelector('textarea').value.trim();
+      const label = (REASONS.find(r => r[0] === category) || [, ''])[1];
+      const ok = await sendRating({rating: 'down', category: category || 'unspecified', reason: label,
+                                   corrected_response: corrected, original_response: replyText, user_message: asked});
+      box.remove();
+      done(ok === 'login' ? 'Log in to leave feedback.' : ok ? 'Thanks, this helps us improve.' : "Couldn't save that, please try again.");
+    };
+    msgEl.append(box);
+  };
+  msgEl.append(row);
+}
+
+function bubble(who, text, rate) {
   const d = document.createElement('div');
   d.className = 'msg ' + (who === 'You' ? 'you' : 'ami');
   d.innerHTML = '<div class="who"></div><div class="bubble"></div>';
   d.querySelector('.who').textContent = who;
   d.querySelector('.bubble').innerHTML = render(text);
+  if (rate) addRating(d, text);
+  if (who === 'You') lastUserText = text;
   $('chat').append(d);
   $('chat').scrollTop = $('chat').scrollHeight;
   return d;
@@ -229,6 +291,7 @@ async function send(e) {
       body: JSON.stringify({message:text})});
     const d = await r.json();
     pending.querySelector('.bubble').innerHTML = render(d.reply);
+    if (!d.requires_login && d.reply) addRating(pending, d.reply);
 
     // If login is required, add a login button
     if (d.requires_login) {
@@ -263,45 +326,6 @@ async function send(e) {
   }
 }
 
-async function submitFeedback() {
-  const original = $('fbOriginal').value.trim();
-  const corrected = $('fbCorrected').value.trim();
-  const reason = $('fbReason').value.trim();
-  const status = $('feedbackStatus');
-
-  if (!original || !corrected) {
-    status.textContent = 'Please fill in both fields.';
-    status.style.color = 'var(--err)';
-    return;
-  }
-
-  try {
-    const r = await fetch('/feedback', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        original_response: original,
-        corrected_response: corrected,
-        reason: reason || null,
-        golden_row_id: null
-      })
-    });
-    const d = await r.json();
-    if (d.ok) {
-      status.textContent = 'Thanks! Feedback saved.';
-      status.style.color = 'var(--ok)';
-      $('fbOriginal').value = '';
-      $('fbCorrected').value = '';
-      $('fbReason').value = '';
-    } else {
-      status.textContent = 'Error: ' + (d.message || 'unknown error');
-      status.style.color = 'var(--err)';
-    }
-  } catch (err) {
-    status.textContent = 'Connection failed: ' + err;
-    status.style.color = 'var(--err)';
-  }
-}
 
 async function reset() {
   try {
@@ -343,7 +367,7 @@ fetch('/state', {headers: {'Content-Type': 'application/json'}}).then(r => r.jso
     // Redraw conversation history from server state
     if (d.history && d.history.length > 0) {
       for (const msg of d.history) {
-        bubble(msg.role === 'user' ? 'You' : 'Ami', msg.content);
+        bubble(msg.role === 'user' ? 'You' : 'Ami', msg.content, msg.role !== 'user');
       }
     }
   } else {
