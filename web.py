@@ -164,7 +164,7 @@ def new_session(user_id=None):
     }
 
 
-def save_feedback(golden_row_id, original_response, corrected_response, reason):
+def save_feedback(golden_row_id, original_response, corrected_response, reason, **extra):
     try:
         FEEDBACK_FILE.parent.mkdir(exist_ok=True)
         feedback_entry = {
@@ -172,7 +172,8 @@ def save_feedback(golden_row_id, original_response, corrected_response, reason):
             "golden_row_id": golden_row_id,
             "original_response": original_response,
             "corrected_response": corrected_response,
-            "reason": reason
+            "reason": reason,
+            **{k: v for k, v in extra.items() if v not in (None, "")},
         }
         with open(FEEDBACK_FILE, "a") as f:
             f.write(json.dumps(feedback_entry) + "\n")
@@ -428,8 +429,18 @@ class Handler(BaseHTTPRequestHandler):
                     corrected_response = data.get("corrected_response", "").strip()
                     reason = data.get("reason", "").strip()
 
-                    if original_response and corrected_response:
-                        save_feedback(golden_row_id, original_response, corrected_response, reason)
+                    # Per-reply rating from the chat (thumbs up / down, optional reason
+                    # and correction), or the older correction form (both texts).
+                    rating = (data.get("rating") or "").strip().lower()
+                    if rating not in ("up", "down"):
+                        rating = ""
+                    category = (data.get("category") or "").strip()[:40]
+                    user_message = (data.get("user_message") or "").strip()[:1000]
+                    if original_response and (corrected_response or rating):
+                        save_feedback(golden_row_id, original_response[:4000], corrected_response[:4000],
+                                      reason[:1000], rating=rating, category=category,
+                                      issue=reason[:200] or category, user_message=user_message,
+                                      user_id=user_id)
                         log_action(user_id, "feedback", status="success", http_status=200,
                                   query_type="PRIVATE" if user_id else "PUBLIC",
                                   details={"ip": self.client_address[0]})
