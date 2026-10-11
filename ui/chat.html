@@ -75,6 +75,14 @@
   .feedback-submit:hover { border-color:var(--accent); }
   .feedback-status { font-size:12px; color:var(--dim); margin-top:6px; }
 
+  /* Log in / Log out in the header. */
+  #authBtn { background:#ff9900; color:#000; border-color:#ff9900; font-weight:600; }
+  #authBtn.out { background:#222733; color:var(--txt); border-color:var(--line); font-weight:400; }
+  .who-chip { margin-left:auto; font-size:12px; color:var(--dim); }
+  .who-chip:empty { display:none; }
+  .who-chip + #authBtn { margin-left:8px; }
+  .who-chip:empty + #authBtn { margin-left:auto; }
+
   /* Per-reply feedback, like a production support chat. */
   .rate { display:flex; align-items:center; gap:6px; margin-top:4px; font-size:11px; color:var(--dim); }
   .rate button { margin:0; background:transparent; border:1px solid transparent; border-radius:6px;
@@ -115,7 +123,9 @@
 
 <div class="col" id="left">
   <header><b>Ami</b><span>Customer support</span>
-    <button onclick="reset()">Reset session</button></header>
+    <span id="who" class="who-chip"></span>
+    <button id="authBtn" onclick="authClick()">Log in</button>
+    <button onclick="reset()" style="margin-left:0">Reset session</button></header>
   <div id="activity"></div>
   <div id="chat"></div>
   <form onsubmit="send(event)">
@@ -210,6 +220,20 @@ function addRating(msgEl, replyText) {
   msgEl.append(row);
 }
 
+// ---- Log in / Log out --------------------------------------------------
+let currentUser = null;
+function setAuth(user) {
+  currentUser = user || null;
+  const btn = $('authBtn');
+  $('who').textContent = currentUser ? 'Signed in as ' + currentUser : '';
+  btn.textContent = currentUser ? 'Log out' : 'Log in';
+  btn.className = currentUser ? 'out' : '';
+}
+function authClick() {
+  if (currentUser) reset();                       // log out = clear the session and the login cookie
+  else window.location.href = '/login?next=/';
+}
+
 function bubble(who, text, rate) {
   const d = document.createElement('div');
   d.className = 'msg ' + (who === 'You' ? 'you' : 'ami');
@@ -245,6 +269,7 @@ function drawActivity(d) {
 }
 
 function draw(d) {
+  if ('user' in d) setAuth(d.user);
   drawActivity(d);
   $('nmsg').textContent = d.messages;
   $('nord').textContent = d.orders;
