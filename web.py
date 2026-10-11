@@ -342,9 +342,11 @@ class Handler(BaseHTTPRequestHandler):
 
             user_id, _ = self._authenticate()
             if path == "/logs.json":
-                self._send(json.dumps({"stats": observe.stats(),
+                stats_now = observe.stats()
+                self._send(json.dumps({"stats": stats_now,
                                        "events": observe.recent(120),
-                                       "alerts": observe.recent(20, kind="alert")}))
+                                       "alerts": observe.recent(20, kind="alert"),
+                                       "alert_status": observe.alert_status(stats_now)}))
             elif path == "/trace.jsonl":
                 try:
                     self._send(observe.LOGFILE.read_text(), "text/plain")

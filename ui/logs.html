@@ -76,6 +76,30 @@
   td.det .bad { color:var(--critical); }
   td.det .okmark { color:var(--good); }
   .empty { color:var(--dim); font-style:italic; padding:18px; }
+
+  /* tabs */
+  nav.tabs { display:flex; gap:6px; padding:12px 22px 0; border-bottom:1px solid var(--line); }
+  nav.tabs button { background:none; border:1px solid transparent; border-bottom:none;
+                    color:var(--dim); font:inherit; font-size:13px; padding:8px 14px;
+                    border-radius:8px 8px 0 0; cursor:pointer; }
+  nav.tabs button.on { color:var(--txt); border-color:var(--line); background:var(--panel); }
+  .tab { display:none; } .tab.on { display:block; }
+
+  /* goals tab */
+  .goal { background:var(--panel); border:1px solid var(--line); border-radius:9px;
+          padding:16px 18px; margin-bottom:16px; }
+  .goal h3 { margin:0 0 4px; font-size:15px; }
+  .goal p.test { margin:0 0 14px; color:var(--dim); font-size:12.5px; }
+  .goal .kpis { margin-bottom:12px; }
+  .kpi .v small { font-size:13px; color:var(--dim); margin-left:6px; }
+  .kpi.good .v { color:var(--good); }
+  .pill { display:inline-block; font-size:10px; letter-spacing:.06em; text-transform:uppercase;
+          padding:2px 8px; border-radius:10px; border:1px solid var(--line); color:var(--dim); }
+  .pill.ok { color:var(--good); border-color:#1f5c1f; }
+  .pill.firing { color:var(--critical); border-color:#7a2323; }
+  .pill.off { color:var(--dim); }
+  .goal table td { font-family:inherit; font-size:12.5px; }
+  .note { color:var(--dim); font-size:12px; margin-top:10px; }
 </style>
 
 <header>
@@ -87,7 +111,13 @@
   </div>
 </header>
 
+<nav class="tabs">
+  <button data-tab="overview" class="on">Overview</button>
+  <button data-tab="goals">Goals 1 &amp; 2</button>
+</nav>
+
 <main>
+<div class="tab on" id="tab-overview">
   <h2>Right now</h2>
   <div class="kpis" id="kpis"></div>
 
@@ -104,6 +134,31 @@
     </tr></thead>
     <tbody id="rows"></tbody>
   </table>
+</div>
+
+<div class="tab" id="tab-goals">
+  <div class="goal">
+    <h3>Goal 1 · Make it cheaper and faster</h3>
+    <p class="test">Success test: same quality at under half the cost. Baseline = the frozen run on cd098e0 (results/baseline_react.json): 0.89¢ per turn, p95 17.9 s. Per-turn figures count web turns only; CLI eval runs in the trace are excluded.</p>
+    <div class="kpis" id="g1"></div>
+    <div class="note">Cost moves with the proxy's prompt cache as much as with token count: watch “cached input” next to “cost per turn”. Answer cache and prefetch are the two levers that remove whole model calls.</div>
+  </div>
+  <div class="goal">
+    <h3>Goal 2 · Catch it when it breaks</h3>
+    <p class="test">Success test: a monitor that notices when answers get worse, proven by breaking the agent on purpose. Thresholds are ALERT_* in config; an alert event is logged on the transition into breach and on recovery.</p>
+    <table>
+      <thead><tr><th>alert</th><th style="text-align:right">live</th><th style="text-align:right">threshold</th><th style="width:90px">status</th></tr></thead>
+      <tbody id="g2-alerts"></tbody>
+    </table>
+    <div class="kpis" id="g2" style="margin-top:12px"></div>
+    <h2>Alert events — newest first</h2>
+    <table>
+      <thead><tr><th style="width:70px">time</th><th>metric</th><th style="text-align:right">value</th><th style="text-align:right">threshold</th><th style="width:90px">state</th></tr></thead>
+      <tbody id="g2-events"></tbody>
+    </table>
+    <div class="note">Break it on purpose: <code>PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest tests/test_alerts.py</code> drives each metric over its threshold and asserts the alert fires once and recovers once.</div>
+  </div>
+</div>
 </main>
 
 <script>
@@ -181,10 +236,66 @@ function detail(e) {
          (e.planner ? '  [' + esc(e.planner) + ']' : '');
 }
 
+// Goal 1 baselines: the frozen "before" run on cd098e0 (results/baseline_react.json).
+const BASE = { cost_per_turn: 0.0089, p95_ms: 17900 };
+const pct = (now, base) => base ? Math.round((now / base - 1) * 100) : 0;
+const signed = n => (n > 0 ? '+' : '') + n + '%';
+const cents = usd_ => (usd_ * 100).toFixed(2) + '¢';
+
+function drawGoal1(s) {
+  const dCost = pct(s.cost_per_turn_web, BASE.cost_per_turn), dP95 = pct(s.turn_p95_ms, BASE.p95_ms);
+  const half = s.turns && s.cost_per_turn_web <= BASE.cost_per_turn / 2;
+  $('g1').innerHTML =
+    kpi(s.turns ? cents(s.cost_per_turn_web) : '—', 'cost per turn',
+        s.turns ? signed(dCost) + ' vs 0.89¢ baseline · target 0.45¢' + (half ? ' · met' : '') : 'no turns yet',
+        s.turns && dCost > 0) +
+    kpi(s.turns ? s.turn_p95_ms + 'ms' : '—', 'turn p95',
+        s.turns ? signed(dP95) + ' vs 17.9 s baseline · alert at 12 s' : 'no turns yet', s.turns && s.turn_p95_ms > 12000) +
+    kpi(s.turns ? s.calls_per_turn : '—', 'model calls per turn', 'prefetch and answer cache remove calls') +
+    kpi(s.cached_pct + '%', 'cached input tokens', s.cached_tokens.toLocaleString() + ' of ' + s.tokens_in.toLocaleString() + ' in · 71% on a good run') +
+    kpi(s.cache_hits + (s.cache_hits + s.cache_misses ? ' / ' + (s.cache_hits + s.cache_misses) : ''), 'answer cache hits',
+        'repeated public questions served without a model call') +
+    kpi(s.prefetches, 'order prefetches', 'order fetched before the first model call');
+}
+
+function drawGoal2(d) {
+  const s = d.stats;
+  const fmt = (v, u) => u === '$' ? cents(v) : u === 'ms' ? v + 'ms' : v + '%';
+  $('g2-alerts').innerHTML = d.alert_status.map(a =>
+    '<tr><td>' + esc(a.label) + ' <span class="tag">' + esc(a.metric) + '</span></td>' +
+    '<td style="text-align:right">' + fmt(a.value, a.unit) + '</td>' +
+    '<td style="text-align:right">' + (a.enabled ? '> ' + fmt(a.threshold, a.unit) : 'disabled') + '</td>' +
+    '<td><span class="pill ' + (!a.enabled ? 'off' : a.firing ? 'firing' : 'ok') + '">' +
+      (!a.enabled ? 'off' : a.firing ? 'firing' : 'ok') + '</span></td></tr>').join('');
+  $('g2').innerHTML =
+    kpi(s.degraded_turns, 'degraded turns', s.degraded_rate + '% of turns · hand-off instead of a crash', s.degraded_rate > 2) +
+    kpi(s.tool_errors, 'tool refusals', s.error_rate + '% of ' + s.tool_calls + ' calls') +
+    kpi(d.alerts.length ? d.alerts.filter(a => a.state === 'firing').length : 0, 'alerts fired', 'since the server started') +
+    kpi(d.alert_status.filter(a => a.firing).length, 'firing now', d.alert_status.filter(a => a.enabled).length + ' alerts armed',
+        d.alert_status.some(a => a.firing));
+  $('g2-events').innerHTML = d.alerts.length ? d.alerts.map(a =>
+    '<tr><td>' + new Date(a.ts * 1000).toLocaleTimeString('en-GB', {hour12:false}) + '</td>' +
+    '<td>' + esc(a.metric) + '</td><td style="text-align:right">' + fmt(a.value, a.unit) + '</td>' +
+    '<td style="text-align:right">' + fmt(a.threshold, a.unit) + '</td>' +
+    '<td><span class="pill ' + (a.state === 'firing' ? 'firing' : 'ok') + '">' + esc(a.state) + '</span></td></tr>').join('')
+    : '<tr><td colspan="5" class="empty">No alert has fired since the server started.</td></tr>';
+}
+
+for (const b of document.querySelectorAll('nav.tabs button')) {
+  b.onclick = () => {
+    document.querySelectorAll('nav.tabs button').forEach(x => x.classList.toggle('on', x === b));
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.id === 'tab-' + b.dataset.tab));
+    location.hash = b.dataset.tab;
+  };
+}
+if (location.hash === '#goals') document.querySelector('[data-tab="goals"]').click();
+
 async function refresh() {
   const d = await (await fetch('/logs.json')).json();
   drawKpis(d.stats);
   drawBars(d.stats);
+  drawGoal1(d.stats);
+  drawGoal2(d);
   const rows = $('rows');
   if (!d.events.length) {
     rows.innerHTML = '<tr><td colspan="7" class="empty">Nothing logged yet. ' +
