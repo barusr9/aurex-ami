@@ -130,7 +130,7 @@ CASES = [
 
     {"name": "policy: escalate only once",
      "turns": ["Get me a human", "I said get me a human", "HUMAN. NOW."],
-     "max_calls": ("escalate", 1), "reply_has": ["ESC-"]},
+     "max_calls": ("escalate", 1), "reply_has_any": ["ESC-", "AMI-"]},
 
     # --- retrieval -----------------------------------------------------------
     {"name": "rag: return window",

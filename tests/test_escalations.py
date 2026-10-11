@@ -220,3 +220,52 @@ class TestBackends:
                             _fake_urlopen(raise_=ConnectionError("down")))
         r = tools.run("escalate", {"summary": "x"}, scope="raj@example.com")
         assert r["escalated"] and r["ticket"].startswith("ESC-") and "ref" not in r
+
+
+class TestCustomerFacingTicket:
+    """The customer is told the Jira key when Jira accepted the ticket."""
+
+    def _jira_cfg(self):
+        return _cfg(ESCALATION_BACKEND="jira", JIRA_URL="https://team.atlassian.net",
+                    JIRA_EMAIL="me@example.com", JIRA_API_TOKEN="tok", JIRA_PROJECT="AMI")
+
+    def test_jira_key_is_the_ticket_when_delivered(self, monkeypatch):
+        monkeypatch.setattr(escalations, "config", self._jira_cfg())
+        monkeypatch.setattr(escalations.urllib.request, "urlopen",
+                            _fake_urlopen(body=b'{"key": "AMI-7"}'))
+        r = tools.run("escalate", {"summary": "late order"}, scope="raj@example.com")
+        assert r["ticket"] == "AMI-7"
+        assert r["local_ticket"].startswith("ESC-")
+        assert _lines()[-1]["ref"] == "AMI-7"
+
+    def test_falls_back_to_esc_when_jira_is_down(self, monkeypatch):
+        monkeypatch.setattr(escalations, "config", self._jira_cfg())
+        monkeypatch.setattr(escalations.urllib.request, "urlopen",
+                            _fake_urlopen(raise_=ConnectionError("down")))
+        r = tools.run("escalate", {"summary": "late order"})
+        assert r["ticket"] == r["local_ticket"] and r["ticket"].startswith("ESC-")
+
+    def test_webhook_reference_is_not_mistaken_for_a_ticket(self, monkeypatch):
+        monkeypatch.setattr(escalations, "config", _cfg(ESCALATION_BACKEND="webhook",
+                                                        ESCALATION_WEBHOOK_URL="https://hook"))
+        monkeypatch.setattr(escalations.urllib.request, "urlopen", _fake_urlopen(status=200))
+        r = tools.run("escalate", {"summary": "x"})
+        assert r["ticket"].startswith("ESC-") and r["ref"] == "HTTP 200"
+
+    def test_no_backend_keeps_esc(self, monkeypatch):
+        monkeypatch.setattr(escalations, "config", _cfg())
+        r = tools.run("escalate", {"summary": "x"})
+        assert r["ticket"] == r["local_ticket"] == "ESC-10001"
+
+
+class TestPolicyKnowsJiraKeys:
+    def test_invented_jira_key_is_flagged_and_real_one_passes(self, monkeypatch):
+        import re as _re
+        monkeypatch.setattr("ami.config.config", _cfg(JIRA_PROJECT="AMI"))
+        monkeypatch.setattr(policy, "_IDENT", policy._ident_pattern())
+        from ami.memory import WorkingMemory
+        w = WorkingMemory(scope="raj@example.com")
+        w.record("escalate", {"summary": "x"}, {"escalated": True, "ticket": "AMI-7",
+                                                 "message": "m", "summary": "x"})
+        out = policy.check_output("Your ticket is AMI-7, not AMI-99.", w)
+        assert "AMI-7" in out and "AMI-99" not in out and "[unverified]" in out
