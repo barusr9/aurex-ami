@@ -215,6 +215,7 @@ def state(session, user_id=None):
         "longterm": LONGTERM.recall(work.customer_email, getattr(work, "session_id", None)) if user_id else None,
         "history": history,
         "greeting": greeting,
+        "user": user_id,          # who is logged in (None for a guest): drives Log in / Log out
     }
 
 
