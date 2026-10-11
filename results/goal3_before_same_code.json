@@ -1,0 +1,470 @@
+[
+ {
+  "case": "complaint: missing package must cite the written policy",
+  "planner": "react",
+  "passed": 2,
+  "runs": 2,
+  "outcomes": [
+   {
+    "called": [
+     "search_knowledge"
+    ],
+    "executed": [
+     "search_knowledge"
+    ],
+    "refused": [],
+    "observed": [
+     {
+      "tool": "search_knowledge",
+      "args": {
+       "question": "What is the policy for a package marked delivered but not received?"
+      },
+      "result": {
+       "passages": [
+        {
+         "source": "policies/shipping.md",
+         "category": "policies",
+         "policy": "Shipping and delivery \u2014 Damaged on arrival",
+         "text": "A package that arrives damaged is handled as a return with reason\n\"damaged\", regardless of how the item is packed. No photos are required\nfor items under $100."
+        },
+        {
+         "source": "tone/bad-news.md",
+         "category": "tone",
+         "policy": "Delivering a no \u2014 What not to do",
+         "text": "- Do not bury the no in the middle of a friendly paragraph.\n- Do not blame \"the system\" or \"policy\" as though it were the weather. We\n  wrote it, and it has a reason.\n- Do not offer sympathy in place of an option.\n- Do not imply the customer could have avoided this by acting sooner."
+        },
+        {
+         "source": "policies/shipping.md",
+         "category": "policies",
+         "policy": "Shipping and delivery \u2014 Late or missing packages",
+         "text": "- If tracking shows \"delivered\" but the customer has not found it: ask them\n  to check with neighbours and building management, and wait 24 hours.\n  Carriers sometimes scan before the final handoff.\n- If still missing after 24 hours past a \"delivered\" scan, we replace or\n  refund at the customer's choice.\n- If tracking shows no movement for 5 days, we treat the package as lost\n  and replace or refund."
+        }
+       ]
+      }
+     }
+    ],
+    "reply": "Under the **Shipping and delivery \u2014 Late or missing packages** policy, please check with neighbours and your building management, then wait 24 hours after the delivered scan. If it\u2019s still missing after that, we can arrange a replacement or refund. Please send your order number so I can check it.",
+    "error": null,
+    "transcript": "[{\"role\": \"user\", \"content\": \"Tracking says my package was delivered but I don't have it.\"}, {\"role\": \"assistant\", \"annotations\": [], \"tool_calls\": [{\"id\": \"call_4TM3xGPtfvpWT4O1MsUWC3oE\", \"function\": {\"arguments\": \"{\\\"question\\\":\\\"What is the policy for a package marked delivered but not received?\\\",\\\"thought\\\":\\\"The customer is asking about a lost or missing delivered package, so I need the written policy before advising or taking account-specific action.\\\"}\", \"name\": \"search_knowledge\"}, \"type\": \"function\"}]}, {\"role\": \"tool\", \"tool_call_id\": \"call_4TM3xGPtfvpWT4O1MsUWC3oE\", \"content\": \"{\\\"passages\\\": [{\\\"source\\\": \\\"policies/shipping.md\\\", \\\"category\\\": \\\"policies\\\", \\\"policy\\\": \\\"Shipping and delivery \\\\u2014 Damaged on arrival\\\", \\\"text\\\": \\\"A package that arrives damaged is handled as a return with reason\\\\n\\\\\\\"damaged\\\\\\\", regardless of how the item is packed. No photos are required\\\\nfor items under $100.\\\"}, {\\\"source\\\": \\\"tone/bad-news.md\\\", \\\"category\\\": \\\"tone\\\", \\\"policy\\\": \\\"Delivering a no \\\\u2014 What not to do\\\", \\\"text\\\": \\\"- Do not bury the no in the middle of a friendly paragraph.\\\\n- Do not blame \\\\\\\"the system\\\\\\\" or \\\\\\\"policy\\\\\\\" as though it were the weather. We\\\\n  wrote it, and it has a reason.\\\\n- Do not offer sympathy in place of an option.\\\\n- Do not imply the customer could have avoided this by acting sooner.\\\"}, {\\\"source\\\": \\\"policies/shipping.md\\\", \\\"category\\\": \\\"policies\\\", \\\"policy\\\": \\\"Shipping and delivery \\\\u2014 Late or missing packages\\\", \\\"text\\\": \\\"- If tracking shows \\\\\\\"delivered\\\\\\\" but the customer has not found it: ask them\\\\n  to check with neighbours and building management, and wait 24 hours.\\\\n  Carriers sometimes scan before the final handoff.\\\\n- If still missing after 24 hours past a \\\\\\\"delivered\\\\\\\" scan, we replace or\\\\n  refund at the customer's choice.\\\\n- If tracking shows no movement for 5 days, we treat the package as lost\\\\n  and replace or refund.\\\"}]}\"}, {\"content\": \"Under the **Shipping and delivery \\u2014 Late or missing packages** policy, please check with neighbours and your building management, then wait 24 hours after the delivered scan. If it\\u2019s still missing after that, we can arrange a replacement or refund. Please send your order number so I can check it.\", \"role\": \"assistant\", \"annotations\": []}]",
+    "store": {
+     "111-1111111-1111111": "delivered",
+     "111-2222222-2222222": "shipped",
+     "111-3333333-3333333": "preparing",
+     "112-1111111-1111111": "delivered",
+     "112-2222222-2222222": "shipped",
+     "112-3333333-3333333": "preparing",
+     "112-4444444-4444444": "delivered"
+    },
+    "llm_calls": 2,
+    "cost": 0.008142,
+    "tokens": 3031,
+    "ms": 5787,
+    "fails": [],
+    "pass": true
+   },
+   {
+    "called": [
+     "search_knowledge"
+    ],
+    "executed": [
+     "search_knowledge"
+    ],
+    "refused": [],
+    "observed": [
+     {
+      "tool": "search_knowledge",
+      "args": {
+       "question": "What is the policy and process when tracking shows a package delivered but the customer cannot find it?"
+      },
+      "result": {
+       "passages": [
+        {
+         "source": "policies/shipping.md",
+         "category": "policies",
+         "policy": "Shipping and delivery \u2014 Late or missing packages",
+         "text": "- If tracking shows \"delivered\" but the customer has not found it: ask them\n  to check with neighbours and building management, and wait 24 hours.\n  Carriers sometimes scan before the final handoff.\n- If still missing after 24 hours past a \"delivered\" scan, we replace or\n  refund at the customer's choice.\n- If tracking shows no movement for 5 days, we treat the package as lost\n  and replace or refund."
+        },
+        {
+         "source": "rules/promises.md",
+         "category": "rules",
+         "policy": "What an agent may state as fact \u2014 Only what a tool returned",
+         "text": "Order status, delivery dates, refund amounts, ticket numbers and RMA\nnumbers are stated only when a tool returned them in this conversation.\n\"It should arrive tomorrow\" without a tracking lookup is a guess wearing\na fact's clothes, and the customer will hold us to it."
+        },
+        {
+         "source": "policies/shipping.md",
+         "category": "policies",
+         "policy": "Shipping and delivery \u2014 Damaged on arrival",
+         "text": "A package that arrives damaged is handled as a return with reason\n\"damaged\", regardless of how the item is packed. No photos are required\nfor items under $100."
+        }
+       ]
+      }
+     }
+    ],
+    "reply": "Under the **Shipping and delivery \u2014 Late or missing packages** policy, please check with neighbours and your building management, then allow 24 hours after the delivered scan\u2014carriers can scan before final handoff. If it is still missing after 24 hours, send me the order number and I can help with a replacement or refund.",
+    "error": null,
+    "transcript": "[{\"role\": \"user\", \"content\": \"Tracking says my package was delivered but I don't have it.\"}, {\"role\": \"assistant\", \"annotations\": [], \"tool_calls\": [{\"id\": \"call_jvklxyp17m3uBe5eu5TA8JI0\", \"function\": {\"arguments\": \"{\\\"question\\\":\\\"What is the policy and process when tracking shows a package delivered but the customer cannot find it?\\\",\\\"thought\\\":\\\"The customer is asking about a missing package marked delivered, which requires the written delivery/lost-package policy before I can advise or take action.\\\"}\", \"name\": \"search_knowledge\"}, \"type\": \"function\"}]}, {\"role\": \"tool\", \"tool_call_id\": \"call_jvklxyp17m3uBe5eu5TA8JI0\", \"content\": \"{\\\"passages\\\": [{\\\"source\\\": \\\"policies/shipping.md\\\", \\\"category\\\": \\\"policies\\\", \\\"policy\\\": \\\"Shipping and delivery \\\\u2014 Late or missing packages\\\", \\\"text\\\": \\\"- If tracking shows \\\\\\\"delivered\\\\\\\" but the customer has not found it: ask them\\\\n  to check with neighbours and building management, and wait 24 hours.\\\\n  Carriers sometimes scan before the final handoff.\\\\n- If still missing after 24 hours past a \\\\\\\"delivered\\\\\\\" scan, we replace or\\\\n  refund at the customer's choice.\\\\n- If tracking shows no movement for 5 days, we treat the package as lost\\\\n  and replace or refund.\\\"}, {\\\"source\\\": \\\"rules/promises.md\\\", \\\"category\\\": \\\"rules\\\", \\\"policy\\\": \\\"What an agent may state as fact \\\\u2014 Only what a tool returned\\\", \\\"text\\\": \\\"Order status, delivery dates, refund amounts, ticket numbers and RMA\\\\nnumbers are stated only when a tool returned them in this conversation.\\\\n\\\\\\\"It should arrive tomorrow\\\\\\\" without a tracking lookup is a guess wearing\\\\na fact's clothes, and the customer will hold us to it.\\\"}, {\\\"source\\\": \\\"policies/shipping.md\\\", \\\"category\\\": \\\"policies\\\", \\\"policy\\\": \\\"Shipping and delivery \\\\u2014 Damaged on arrival\\\", \\\"text\\\": \\\"A package that arrives damaged is handled as a return with reason\\\\n\\\\\\\"damaged\\\\\\\", regardless of how the item is packed. No photos are required\\\\nfor items under $100.\\\"}]}\"}, {\"content\": \"Under the **Shipping and delivery \\u2014 Late or missing packages** policy, please check with neighbours and your building management, then allow 24 hours after the delivered scan\\u2014carriers can scan before final handoff. If it is still missing after 24 hours, send me the order number and I can help with a replacement or refund.\", \"role\": \"assistant\", \"annotations\": []}]",
+    "store": {
+     "111-1111111-1111111": "delivered",
+     "111-2222222-2222222": "shipped",
+     "111-3333333-3333333": "preparing",
+     "112-1111111-1111111": "delivered",
+     "112-2222222-2222222": "shipped",
+     "112-3333333-3333333": "preparing",
+     "112-4444444-4444444": "delivered"
+    },
+    "llm_calls": 2,
+    "cost": 0.008574,
+    "tokens": 3057,
+    "ms": 4114,
+    "fails": [],
+    "pass": true
+   }
+  ]
+ },
+ {
+  "case": "complaint: stalled tracking must cite the written policy",
+  "planner": "react",
+  "passed": 2,
+  "runs": 2,
+  "outcomes": [
+   {
+    "called": [
+     "search_knowledge"
+    ],
+    "executed": [
+     "search_knowledge"
+    ],
+    "refused": [],
+    "observed": [
+     {
+      "tool": "search_knowledge",
+      "args": {
+       "question": "What is the policy or process when package tracking has not updated for a week?"
+      },
+      "result": {
+       "passages": [
+        {
+         "source": "policies/shipping.md",
+         "category": "policies",
+         "policy": "Shipping and delivery \u2014 Late or missing packages",
+         "text": "- If tracking shows \"delivered\" but the customer has not found it: ask them\n  to check with neighbours and building management, and wait 24 hours.\n  Carriers sometimes scan before the final handoff.\n- If still missing after 24 hours past a \"delivered\" scan, we replace or\n  refund at the customer's choice.\n- If tracking shows no movement for 5 days, we treat the package as lost\n  and replace or refund."
+        },
+        {
+         "source": "rules/promises.md",
+         "category": "rules",
+         "policy": "What an agent may state as fact \u2014 Only what a tool returned",
+         "text": "Order status, delivery dates, refund amounts, ticket numbers and RMA\nnumbers are stated only when a tool returned them in this conversation.\n\"It should arrive tomorrow\" without a tracking lookup is a guess wearing\na fact's clothes, and the customer will hold us to it."
+        },
+        {
+         "source": "policies/shipping.md",
+         "category": "policies",
+         "policy": "Shipping and delivery",
+         "text": "Estimated delivery dates are estimates. An order is considered late only\nif it has not arrived by the end of the day AFTER the estimated date."
+        }
+       ]
+      }
+     }
+    ],
+    "reply": "Under the **Shipping and delivery \u2014 Late or missing packages** policy, tracking with no movement for 5 days is treated as a lost package, and you can choose a replacement or refund. Please send the order number, and I\u2019ll check the tracking and help with the next step.",
+    "error": null,
+    "transcript": "[{\"role\": \"user\", \"content\": \"My tracking hasn't updated in a week. What happens now?\"}, {\"role\": \"assistant\", \"annotations\": [], \"tool_calls\": [{\"id\": \"call_uSzmTYgLeCoG224rv523aEvy\", \"function\": {\"arguments\": \"{\\\"question\\\":\\\"What is the policy or process when package tracking has not updated for a week?\\\",\\\"thought\\\":\\\"The customer asks about shipping rules for stalled tracking, so I need the applicable written policy before giving guidance.\\\"}\", \"name\": \"search_knowledge\"}, \"type\": \"function\"}]}, {\"role\": \"tool\", \"tool_call_id\": \"call_uSzmTYgLeCoG224rv523aEvy\", \"content\": \"{\\\"passages\\\": [{\\\"source\\\": \\\"policies/shipping.md\\\", \\\"category\\\": \\\"policies\\\", \\\"policy\\\": \\\"Shipping and delivery \\\\u2014 Late or missing packages\\\", \\\"text\\\": \\\"- If tracking shows \\\\\\\"delivered\\\\\\\" but the customer has not found it: ask them\\\\n  to check with neighbours and building management, and wait 24 hours.\\\\n  Carriers sometimes scan before the final handoff.\\\\n- If still missing after 24 hours past a \\\\\\\"delivered\\\\\\\" scan, we replace or\\\\n  refund at the customer's choice.\\\\n- If tracking shows no movement for 5 days, we treat the package as lost\\\\n  and replace or refund.\\\"}, {\\\"source\\\": \\\"rules/promises.md\\\", \\\"category\\\": \\\"rules\\\", \\\"policy\\\": \\\"What an agent may state as fact \\\\u2014 Only what a tool returned\\\", \\\"text\\\": \\\"Order status, delivery dates, refund amounts, ticket numbers and RMA\\\\nnumbers are stated only when a tool returned them in this conversation.\\\\n\\\\\\\"It should arrive tomorrow\\\\\\\" without a tracking lookup is a guess wearing\\\\na fact's clothes, and the customer will hold us to it.\\\"}, {\\\"source\\\": \\\"policies/shipping.md\\\", \\\"category\\\": \\\"policies\\\", \\\"policy\\\": \\\"Shipping and delivery\\\", \\\"text\\\": \\\"Estimated delivery dates are estimates. An order is considered late only\\\\nif it has not arrived by the end of the day AFTER the estimated date.\\\"}]}\"}, {\"content\": \"Under the **Shipping and delivery \\u2014 Late or missing packages** policy, tracking with no movement for 5 days is treated as a lost package, and you can choose a replacement or refund. Please send the order number, and I\\u2019ll check the tracking and help with the next step.\", \"role\": \"assistant\", \"annotations\": []}]",
+    "store": {
+     "111-1111111-1111111": "delivered",
+     "111-2222222-2222222": "shipped",
+     "111-3333333-3333333": "preparing",
+     "112-1111111-1111111": "delivered",
+     "112-2222222-2222222": "shipped",
+     "112-3333333-3333333": "preparing",
+     "112-4444444-4444444": "delivered"
+    },
+    "llm_calls": 2,
+    "cost": 0.005925,
+    "tokens": 2966,
+    "ms": 3827,
+    "fails": [],
+    "pass": true
+   },
+   {
+    "called": [
+     "search_knowledge"
+    ],
+    "executed": [
+     "search_knowledge"
+    ],
+    "refused": [],
+    "observed": [
+     {
+      "tool": "search_knowledge",
+      "args": {
+       "question": "What happens when package tracking has not updated for a week, and what are the next steps for a potentially delayed or lost package?"
+      },
+      "result": {
+       "passages": [
+        {
+         "source": "policies/shipping.md",
+         "category": "policies",
+         "policy": "Shipping and delivery \u2014 Late or missing packages",
+         "text": "- If tracking shows \"delivered\" but the customer has not found it: ask them\n  to check with neighbours and building management, and wait 24 hours.\n  Carriers sometimes scan before the final handoff.\n- If still missing after 24 hours past a \"delivered\" scan, we replace or\n  refund at the customer's choice.\n- If tracking shows no movement for 5 days, we treat the package as lost\n  and replace or refund."
+        },
+        {
+         "source": "policies/shipping.md",
+         "category": "policies",
+         "policy": "Shipping and delivery",
+         "text": "Estimated delivery dates are estimates. An order is considered late only\nif it has not arrived by the end of the day AFTER the estimated date."
+        },
+        {
+         "source": "tone/upset.md",
+         "category": "tone",
+         "policy": "When the customer is upset \u2014 The first reply",
+         "text": "Name the specific thing that went wrong \u2014 the missed date, the wrong item\n\u2014 once, in one clause, then move straight to what happens now. Generic\nsympathy reads as delay, and delay is what they are angry about."
+        }
+       ]
+      }
+     }
+    ],
+    "reply": "Under the **Shipping and delivery \u2014 Late or missing packages** policy, no tracking movement for 5 days means we treat the package as lost and can arrange a replacement or refund. Please send your order number, and I\u2019ll check the shipment and help with the available option.",
+    "error": null,
+    "transcript": "[{\"role\": \"user\", \"content\": \"My tracking hasn't updated in a week. What happens now?\"}, {\"role\": \"assistant\", \"annotations\": [], \"tool_calls\": [{\"id\": \"call_zhibCeU5yeAM3GkG9OHYVewf\", \"function\": {\"arguments\": \"{\\\"question\\\":\\\"What happens when package tracking has not updated for a week, and what are the next steps for a potentially delayed or lost package?\\\",\\\"thought\\\":\\\"The customer is asking about the late/lost-package rules, so I need the applicable written policy before advising or taking order-specific action.\\\"}\", \"name\": \"search_knowledge\"}, \"type\": \"function\"}]}, {\"role\": \"tool\", \"tool_call_id\": \"call_zhibCeU5yeAM3GkG9OHYVewf\", \"content\": \"{\\\"passages\\\": [{\\\"source\\\": \\\"policies/shipping.md\\\", \\\"category\\\": \\\"policies\\\", \\\"policy\\\": \\\"Shipping and delivery \\\\u2014 Late or missing packages\\\", \\\"text\\\": \\\"- If tracking shows \\\\\\\"delivered\\\\\\\" but the customer has not found it: ask them\\\\n  to check with neighbours and building management, and wait 24 hours.\\\\n  Carriers sometimes scan before the final handoff.\\\\n- If still missing after 24 hours past a \\\\\\\"delivered\\\\\\\" scan, we replace or\\\\n  refund at the customer's choice.\\\\n- If tracking shows no movement for 5 days, we treat the package as lost\\\\n  and replace or refund.\\\"}, {\\\"source\\\": \\\"policies/shipping.md\\\", \\\"category\\\": \\\"policies\\\", \\\"policy\\\": \\\"Shipping and delivery\\\", \\\"text\\\": \\\"Estimated delivery dates are estimates. An order is considered late only\\\\nif it has not arrived by the end of the day AFTER the estimated date.\\\"}, {\\\"source\\\": \\\"tone/upset.md\\\", \\\"category\\\": \\\"tone\\\", \\\"policy\\\": \\\"When the customer is upset \\\\u2014 The first reply\\\", \\\"text\\\": \\\"Name the specific thing that went wrong \\\\u2014 the missed date, the wrong item\\\\n\\\\u2014 once, in one clause, then move straight to what happens now. Generic\\\\nsympathy reads as delay, and delay is what they are angry about.\\\"}]}\"}, {\"content\": \"Under the **Shipping and delivery \\u2014 Late or missing packages** policy, no tracking movement for 5 days means we treat the package as lost and can arrange a replacement or refund. Please send your order number, and I\\u2019ll check the shipment and help with the available option.\", \"role\": \"assistant\", \"annotations\": []}]",
+    "store": {
+     "111-1111111-1111111": "delivered",
+     "111-2222222-2222222": "shipped",
+     "111-3333333-3333333": "preparing",
+     "112-1111111-1111111": "delivered",
+     "112-2222222-2222222": "shipped",
+     "112-3333333-3333333": "preparing",
+     "112-4444444-4444444": "delivered"
+    },
+    "llm_calls": 2,
+    "cost": 0.0054862,
+    "tokens": 2926,
+    "ms": 3471,
+    "fails": [],
+    "pass": true
+   }
+  ]
+ },
+ {
+  "case": "complaint: address change needs the written rule, not a guess",
+  "planner": "react",
+  "passed": 2,
+  "runs": 2,
+  "outcomes": [
+   {
+    "called": [
+     "get_order",
+     "search_knowledge",
+     "get_order",
+     "escalate"
+    ],
+    "executed": [
+     "get_order",
+     "search_knowledge",
+     "get_order",
+     "escalate"
+    ],
+    "refused": [],
+    "observed": [
+     {
+      "tool": "get_order",
+      "args": {
+       "order_id": "112-3333333-3333333",
+       "scope": "mei@example.com"
+      },
+      "result": {
+       "order_id": "112-3333333-3333333",
+       "item": "Kindle Paperwhite 16GB",
+       "price": 149.99,
+       "status": "preparing",
+       "ordered_on": "2026-10-11",
+       "delivered_on": null,
+       "eta": "2026-10-15"
+      }
+     },
+     {
+      "tool": "search_knowledge",
+      "args": {
+       "question": "Can a customer change the delivery address for an order that is preparing? What is the process?"
+      },
+      "result": {
+       "passages": [
+        {
+         "source": "policies/account.md",
+         "category": "policies",
+         "policy": "Account and payment safety \u2014 Verification",
+         "text": "A customer is identified by the email address on the order. Agents may\nlook up orders by email or by order number. No further verification is\nneeded for order status, tracking, or returns. Changing the delivery\naddress or payment method on an order requires a human agent."
+        },
+        {
+         "source": "rules/handling.md",
+         "category": "rules",
+         "policy": "Handling a conversation \u2014 Destructive actions are confirmed first",
+         "text": "Cancelling an order or starting a return changes the customer's account.\nSay exactly what will happen, with the amount and the timing, and wait for\nthe customer to agree in their own words before doing it. A confirmation\nthe agent supplied on the customer's behalf is not a confirmation."
+        },
+        {
+         "source": "rules/promises.md",
+         "category": "rules",
+         "policy": "What an agent may state as fact \u2014 Never promise",
+         "text": "- That an exception will be granted \u2014 only that it will be reviewed.\n- A refund before the returned item has been scanned by the carrier.\n- A delivery date the carrier has not given us.\n- That a human will telephone. Escalation is answered by email, within 24\n  hours."
+        }
+       ]
+      }
+     },
+     {
+      "tool": "get_order",
+      "args": {
+       "order_id": "112-3333333-3333333"
+      },
+      "result": {
+       "order_id": "112-3333333-3333333",
+       "item": "Kindle Paperwhite 16GB",
+       "price": 149.99,
+       "status": "preparing",
+       "ordered_on": "2026-10-11",
+       "delivered_on": null,
+       "eta": "2026-10-15"
+      }
+     },
+     {
+      "tool": "escalate",
+      "args": {
+       "summary": "Authenticated customer requests a delivery-address change for order 112-3333333-3333333 (Kindle Paperwhite 16GB), currently preparing. Please review and assist."
+      },
+      "result": {
+       "escalated": true,
+       "ticket": "ESC-10001",
+       "local_ticket": "ESC-10001",
+       "message": "A human agent will email you within 24 hours.",
+       "summary": "Authenticated customer requests a delivery-address change for order 112-3333333-3333333 (Kindle Paperwhite 16GB), currently preparing. Please review and assist.",
+       "routed_to": "Customer Care"
+      }
+     }
+    ],
+    "reply": "The **Account and payment safety \u2014 Verification** policy requires a human agent to change a delivery address. Your request is already with Customer Care under ticket **ESC-10001**; they\u2019ll review it and email you within 24 hours.",
+    "error": null,
+    "transcript": "[{\"role\": \"user\", \"content\": \"Can you change the delivery address on order 112-3333333-3333333?\"}, {\"role\": \"assistant\", \"annotations\": [], \"tool_calls\": [{\"id\": \"call_B9jmWaTAF7mogjCq2Ax42VIk\", \"function\": {\"arguments\": \"{\\\"question\\\":\\\"Can a customer change the delivery address for an order that is preparing? What is the process?\\\",\\\"thought\\\":\\\"The customer asks about changing an order delivery address, so I need the written shipping/order-change rule before advising or acting.\\\"}\", \"name\": \"search_knowledge\"}, \"type\": \"function\"}]}, {\"role\": \"tool\", \"tool_call_id\": \"call_B9jmWaTAF7mogjCq2Ax42VIk\", \"content\": \"{\\\"passages\\\": [{\\\"source\\\": \\\"policies/account.md\\\", \\\"category\\\": \\\"policies\\\", \\\"policy\\\": \\\"Account and payment safety \\\\u2014 Verification\\\", \\\"text\\\": \\\"A customer is identified by the email address on the order. Agents may\\\\nlook up orders by email or by order number. No further verification is\\\\nneeded for order status, tracking, or returns. Changing the delivery\\\\naddress or payment method on an order requires a human agent.\\\"}, {\\\"source\\\": \\\"rules/handling.md\\\", \\\"category\\\": \\\"rules\\\", \\\"policy\\\": \\\"Handling a conversation \\\\u2014 Destructive actions are confirmed first\\\", \\\"text\\\": \\\"Cancelling an order or starting a return changes the customer's account.\\\\nSay exactly what will happen, with the amount and the timing, and wait for\\\\nthe customer to agree in their own words before doing it. A confirmation\\\\nthe agent supplied on the customer's behalf is not a confirmation.\\\"}, {\\\"source\\\": \\\"rules/promises.md\\\", \\\"category\\\": \\\"rules\\\", \\\"policy\\\": \\\"What an agent may state as fact \\\\u2014 Never promise\\\", \\\"text\\\": \\\"- That an exception will be granted \\\\u2014 only that it will be reviewed.\\\\n- A refund before the returned item has been scanned by the carrier.\\\\n- A delivery date the carrier has not given us.\\\\n- That a human will telephone. Escalation is answered by email, within 24\\\\n  hours.\\\"}]}\"}, {\"role\": \"assistant\", \"annotations\": [], \"tool_calls\": [{\"id\": \"call_0CFzHfG8wQCqHa3d9VMjMKnw\", \"function\": {\"arguments\": \"{\\\"order_id\\\":\\\"112-3333333-3333333\\\",\\\"thought\\\":\\\"The customer provided an order number; I need its current details to give the human agent an accurate request summary.\\\"}\", \"name\": \"get_order\"}, \"type\": \"function\"}]}, {\"role\": \"tool\", \"tool_call_id\": \"call_0CFzHfG8wQCqHa3d9VMjMKnw\", \"content\": \"{\\\"order_id\\\": \\\"112-3333333-3333333\\\", \\\"item\\\": \\\"Kindle Paperwhite 16GB\\\", \\\"price\\\": 149.99, \\\"status\\\": \\\"preparing\\\", \\\"ordered_on\\\": \\\"2026-10-11\\\", \\\"delivered_on\\\": null, \\\"eta\\\": \\\"2026-10-15\\\"}\"}, {\"role\": \"assistant\", \"annotations\": [], \"tool_calls\": [{\"id\": \"call_DzxGKx6E2WcYEEBFDLdyIcwW\", \"function\": {\"arguments\": \"{\\\"summary\\\":\\\"Authenticated customer requests a delivery-address change for order 112-3333333-3333333 (Kindle Paperwhite 16GB), currently preparing. Please review and assist.\\\",\\\"thought\\\":\\\"The policy requires a human agent to change an order delivery address, so I need to hand this request off.\\\"}\", \"name\": \"escalate\"}, \"type\": \"function\"}]}, {\"role\": \"tool\", \"tool_call_id\": \"call_DzxGKx6E2WcYEEBFDLdyIcwW\", \"content\": \"{\\\"escalated\\\": true, \\\"ticket\\\": \\\"ESC-10001\\\", \\\"local_ticket\\\": \\\"ESC-10001\\\", \\\"message\\\": \\\"A human agent will email you within 24 hours.\\\", \\\"summary\\\": \\\"Authenticated customer requests a delivery-address change for order 112-3333333-3333333 (Kindle Paperwhite 16GB), currently preparing. Please review and assist.\\\", \\\"routed_to\\\": \\\"Customer Care\\\"}\"}, {\"content\": \"The **Account and payment safety \\u2014 Verification** policy requires a human agent to change a delivery address. Your request is already with Customer Care under ticket **ESC-10001**; they\\u2019ll review it and email you within 24 hours.\", \"role\": \"assistant\", \"annotations\": []}]",
+    "store": {
+     "111-1111111-1111111": "delivered",
+     "111-2222222-2222222": "shipped",
+     "111-3333333-3333333": "preparing",
+     "112-1111111-1111111": "delivered",
+     "112-2222222-2222222": "shipped",
+     "112-3333333-3333333": "preparing",
+     "112-4444444-4444444": "delivered"
+    },
+    "llm_calls": 4,
+    "cost": 0.014185600000000001,
+    "tokens": 7113,
+    "ms": 6085,
+    "fails": [],
+    "pass": true
+   },
+   {
+    "called": [
+     "get_order",
+     "get_order",
+     "search_knowledge",
+     "escalate"
+    ],
+    "executed": [
+     "get_order",
+     "get_order",
+     "search_knowledge",
+     "escalate"
+    ],
+    "refused": [],
+    "observed": [
+     {
+      "tool": "get_order",
+      "args": {
+       "order_id": "112-3333333-3333333",
+       "scope": "mei@example.com"
+      },
+      "result": {
+       "order_id": "112-3333333-3333333",
+       "item": "Kindle Paperwhite 16GB",
+       "price": 149.99,
+       "status": "preparing",
+       "ordered_on": "2026-10-11",
+       "delivered_on": null,
+       "eta": "2026-10-15"
+      }
+     },
+     {
+      "tool": "get_order",
+      "args": {
+       "order_id": "112-3333333-3333333"
+      },
+      "result": {
+       "order_id": "112-3333333-3333333",
+       "item": "Kindle Paperwhite 16GB",
+       "price": 149.99,
+       "status": "preparing",
+       "ordered_on": "2026-10-11",
+       "delivered_on": null,
+       "eta": "2026-10-15"
+      }
+     },
+     {
+      "tool": "search_knowledge",
+      "args": {
+       "question": "Can a customer change the delivery address for an order that is preparing, and what options are available?"
+      },
+      "result": {
+       "passages": [
+        {
+         "source": "policies/account.md",
+         "category": "policies",
+         "policy": "Account and payment safety \u2014 Verification",
+         "text": "A customer is identified by the email address on the order. Agents may\nlook up orders by email or by order number. No further verification is\nneeded for order status, tracking, or returns. Changing the delivery\naddress or payment method on an order requires a human agent."
+        },
+        {
+         "source": "rules/handling.md",
+         "category": "rules",
+         "policy": "Handling a conversation \u2014 Destructive actions are confirmed first",
+         "text": "Cancelling an order or starting a return changes the customer's account.\nSay exactly what will happen, with the amount and the timing, and wait for\nthe customer to agree in their own words before doing it. A confirmation\nthe agent supplied on the customer's behalf is not a confirmation."
+        },
+        {
+         "source": "rules/handling.md",
+         "category": "rules",
+         "policy": "Handling a conversation \u2014 One missing detail at a time",
+         "text": "Ask for the single thing needed to act, not a form. Usually that is the\norder number, or the email address on the order."
+        }
+       ]
+      }
+     },
+     {
+      "tool": "escalate",
+      "args": {
+       "summary": "Authenticated customer requests a delivery-address change for order 112-3333333-3333333 (Kindle Paperwhite 16GB), currently preparing."
+      },
+      "result": {
+       "escalated": true,
+       "ticket": "ESC-10002",
+       "local_ticket": "ESC-10002",
+       "message": "A human agent will email you within 24 hours.",
+       "summary": "Authenticated customer requests a delivery-address change for order 112-3333333-3333333 (Kindle Paperwhite 16GB), currently preparing.",
+       "routed_to": "Customer Care"
+      }
+     }
+    ],
+    "reply": "Your order is preparing. Under the **Account and payment safety \u2014 Verification policy**, delivery-address changes require a human agent. This is already with ticket **ESC-10002**; a Customer Care agent will email you within 24 hours.",
+    "error": null,
+    "transcript": "[{\"role\": \"user\", \"content\": \"Can you change the delivery address on order 112-3333333-3333333?\"}, {\"role\": \"assistant\", \"annotations\": [], \"tool_calls\": [{\"id\": \"call_fDEWz5UqojTKwzlSn5PplyKT\", \"function\": {\"arguments\": \"{\\\"order_id\\\":\\\"112-3333333-3333333\\\",\\\"thought\\\":\\\"The customer provided an order number and wants an account-specific order change; I need to check the order details and eligibility before explaining available options.\\\"}\", \"name\": \"get_order\"}, \"type\": \"function\"}]}, {\"role\": \"tool\", \"tool_call_id\": \"call_fDEWz5UqojTKwzlSn5PplyKT\", \"content\": \"{\\\"order_id\\\": \\\"112-3333333-3333333\\\", \\\"item\\\": \\\"Kindle Paperwhite 16GB\\\", \\\"price\\\": 149.99, \\\"status\\\": \\\"preparing\\\", \\\"ordered_on\\\": \\\"2026-10-11\\\", \\\"delivered_on\\\": null, \\\"eta\\\": \\\"2026-10-15\\\"}\"}, {\"role\": \"assistant\", \"annotations\": [], \"tool_calls\": [{\"id\": \"call_fqMDJX0GEtDICWnN3bUNv6fY\", \"function\": {\"arguments\": \"{\\\"question\\\":\\\"Can a customer change the delivery address for an order that is preparing, and what options are available?\\\",\\\"thought\\\":\\\"I confirmed the order is preparing. I need the written address-change rule before advising what can be done, since no address-change action is available.\\\"}\", \"name\": \"search_knowledge\"}, \"type\": \"function\"}]}, {\"role\": \"tool\", \"tool_call_id\": \"call_fqMDJX0GEtDICWnN3bUNv6fY\", \"content\": \"{\\\"passages\\\": [{\\\"source\\\": \\\"policies/account.md\\\", \\\"category\\\": \\\"policies\\\", \\\"policy\\\": \\\"Account and payment safety \\\\u2014 Verification\\\", \\\"text\\\": \\\"A customer is identified by the email address on the order. Agents may\\\\nlook up orders by email or by order number. No further verification is\\\\nneeded for order status, tracking, or returns. Changing the delivery\\\\naddress or payment method on an order requires a human agent.\\\"}, {\\\"source\\\": \\\"rules/handling.md\\\", \\\"category\\\": \\\"rules\\\", \\\"policy\\\": \\\"Handling a conversation \\\\u2014 Destructive actions are confirmed first\\\", \\\"text\\\": \\\"Cancelling an order or starting a return changes the customer's account.\\\\nSay exactly what will happen, with the amount and the timing, and wait for\\\\nthe customer to agree in their own words before doing it. A confirmation\\\\nthe agent supplied on the customer's behalf is not a confirmation.\\\"}, {\\\"source\\\": \\\"rules/handling.md\\\", \\\"category\\\": \\\"rules\\\", \\\"policy\\\": \\\"Handling a conversation \\\\u2014 One missing detail at a time\\\", \\\"text\\\": \\\"Ask for the single thing needed to act, not a form. Usually that is the\\\\norder number, or the email address on the order.\\\"}]}\"}, {\"role\": \"assistant\", \"annotations\": [], \"tool_calls\": [{\"id\": \"call_Va6s7xuKT7JGvn3WLEh35rQf\", \"function\": {\"arguments\": \"{\\\"summary\\\":\\\"Authenticated customer requests a delivery-address change for order 112-3333333-3333333 (Kindle Paperwhite 16GB), currently preparing.\\\",\\\"thought\\\":\\\"The Account and payment safety \\u2014 Verification policy says delivery-address changes require a human agent, so I need to hand this request off.\\\"}\", \"name\": \"escalate\"}, \"type\": \"function\"}]}, {\"role\": \"tool\", \"tool_call_id\": \"call_Va6s7xuKT7JGvn3WLEh35rQf\", \"content\": \"{\\\"escalated\\\": true, \\\"ticket\\\": \\\"ESC-10002\\\", \\\"local_ticket\\\": \\\"ESC-10002\\\", \\\"message\\\": \\\"A human agent will email you within 24 hours.\\\", \\\"summary\\\": \\\"Authenticated customer requests a delivery-address change for order 112-3333333-3333333 (Kindle Paperwhite 16GB), currently preparing.\\\", \\\"routed_to\\\": \\\"Customer Care\\\"}\"}, {\"content\": \"Your order is preparing. Under the **Account and payment safety \\u2014 Verification policy**, delivery-address changes require a human agent. This is already with ticket **ESC-10002**; a Customer Care agent will email you within 24 hours.\", \"role\": \"assistant\", \"annotations\": []}]",
+    "store": {
+     "111-1111111-1111111": "delivered",
+     "111-2222222-2222222": "shipped",
+     "111-3333333-3333333": "preparing",
+     "112-1111111-1111111": "delivered",
+     "112-2222222-2222222": "shipped",
+     "112-3333333-3333333": "preparing",
+     "112-4444444-4444444": "delivered"
+    },
+    "llm_calls": 4,
+    "cost": 0.0144474,
+    "tokens": 6549,
+    "ms": 6686,
+    "fails": [],
+    "pass": true
+   }
+  ]
+ }
+]

@@ -28,6 +28,8 @@ results/*
 !results/golden_after_phase1.json
 !results/golden_before_cd098e0.json
 !results/golden_final.json
+!results/goal3_before_same_code.json
+!results/goal3_after.json
 
 # OS / editor
 .DS_Store
