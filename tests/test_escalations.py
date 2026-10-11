@@ -128,7 +128,7 @@ def _fake_urlopen(status=200, body=b"{}", capture=None, raise_=None, meta=None):
                 return _Resp(json.dumps({"fields": fields}).encode())
             return _Resp(json.dumps({"issueTypes": [{"id": "10003", "name": "Task"}]}).encode())
         if capture is not None:
-            capture.append({"url": req.full_url, "body": json.loads(req.data.decode()),
+            capture.append({"url": req.full_url, "method": req.get_method(), "body": json.loads(req.data.decode()),
                             "headers": dict(req.headers), "timeout": timeout})
         if raise_:
             raise raise_
@@ -317,3 +317,19 @@ class TestJiraFields:
     def test_normal_priority_maps_to_medium(self):
         rec = {"routing": {"priority": "Normal"}, "orders": {}}
         assert escalations._jira_extra_fields(rec, {"priority": "priority"})["priority"] == {"name": "Medium"}
+
+
+    def test_title_and_headline_become_the_jira_key(self, monkeypatch):
+        monkeypatch.setattr(escalations, "config", self._cfg())
+        called = []
+        monkeypatch.setattr(escalations.urllib.request, "urlopen",
+                            _fake_urlopen(body=b'{"key": "AMI-30"}', capture=called, meta=["Summary"]))
+        rec = escalations.open_ticket("order is late", customer="demo1@cofy.ai")
+        assert escalations.deliver(rec) == "AMI-30"
+        post, put = called[0], called[1]
+        assert post["method"] == "POST" and put["method"] == "PUT"
+        assert put["url"].endswith("/rest/api/3/issue/AMI-30")
+        assert put["body"]["fields"]["summary"] == "AMI-30"
+        flat = json.dumps(put["body"]["fields"]["description"])
+        assert "AMI-30 [delivery delay]" in flat
+        assert rec["ticket"] not in flat                      # one number in Jira: the AMI key
