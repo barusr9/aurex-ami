@@ -62,34 +62,55 @@ def _records():
         return
 
 
-def _last_number():
-    last = FIRST_TICKET - 1
+def _last_number(prefix=PREFIX, first=FIRST_TICKET):
+    last = first - 1
     for r in _records():
         t = str(r.get("ticket", ""))
-        if t.startswith(PREFIX) and t[len(PREFIX):].isdigit():
-            last = max(last, int(t[len(PREFIX):]))
+        if t.startswith(prefix) and t[len(prefix):].isdigit():
+            last = max(last, int(t[len(prefix):]))
     return last
+
+
+# What kind of event a ticket records. Each kind has its own reference number
+# (ESC for a hand-off, the RMA for a return, CXL for a cancellation) and, when
+# the summary does not pick a more specific row, a default routing category.
+KINDS = {
+    "escalation":     {"prefix": "ESC-", "first": FIRST_TICKET, "default": None},
+    "system-failure": {"prefix": "ESC-", "first": FIRST_TICKET, "default": "general_complaint"},
+    "cancellation":   {"prefix": "CXL-", "first": 1001,         "default": "cancellation"},
+    "return":         {"prefix": None,   "first": None,         "default": "returns_refunds"},   # id is the RMA
+}
 
 
 _ORDER_ID = re.compile(r"\b\d{3}-\d{7}-\d{7}\b")
 
 
-def open_ticket(summary, customer=None, context=None):
-    """Mint a unique ticket, route it, and record it. Returns the record."""
+def open_ticket(summary, customer=None, context=None, kind="escalation", ticket_id=None):
+    """Mint (or take) a ticket id, route it, and record it. Returns the record.
+
+    kind: escalation | return | cancellation | system-failure (see KINDS).
+    ticket_id: use this id instead of minting one (a return's RMA)."""
     from ami import routing                  # local import keeps module load light
     context = context or {}
+    spec = KINDS.get(kind, KINDS["escalation"])
     orders = dict(context.get("orders") or {})
     route = routing.route(summary, orders)
+    # Returns and cancellations land with their own team. A return whose reason
+    # sounds like damage goes to Returns & Quality instead (the summary picked it).
+    if kind == "return" and route["category"] != "damaged_or_wrong_item":
+        route = routing.route_category("returns_refunds", orders) or route
+    elif kind in ("cancellation", "system-failure"):
+        route = routing.route_category(spec["default"], orders) or route
     # Order ids the agent wrote in its summary but never looked up: shown, flagged
     mentioned = [o for o in dict.fromkeys(_ORDER_ID.findall(summary or "")) if o not in orders]
     with _lock:                              # mint + append are one step
-        ticket = f"{PREFIX}{_last_number() + 1}"
-        ev = observe.log("escalation", ticket=ticket, status="opened",
+        ticket = ticket_id or f"{spec['prefix']}{_last_number(spec['prefix'], spec['first']) + 1}"
+        ev = observe.log("escalation", ticket=ticket, status="opened", ticket_kind=kind,
                          backend=(config.ESCALATION_BACKEND or "none"),
                          customer=customer, summary=(summary or "")[:300],
                          category=route["category"], department=route["department"])
         record = {
-            "ticket": ticket, "status": "opened", "ts": ev["ts"],
+            "ticket": ticket, "kind": kind, "status": "opened", "ts": ev["ts"],
             "session": ev.get("session"), "turn": ev.get("turn"),
             "customer": customer, "summary": summary or "",
             "orders": orders, "orders_mentioned_unverified": mentioned,
@@ -255,7 +276,7 @@ def _adf(record):
 
 def _jira_labels(record):
     r = record.get("routing") or {}
-    labels = [r.get("category") or "general_complaint",
+    labels = [record.get("kind") or "escalation", r.get("category") or "general_complaint",
               "authenticated" if record.get("customer") else "guest",
               "priority-" + (r.get("priority") or "normal").lower()]
     return [re.sub(r"[^A-Za-z0-9_-]", "-", x) for x in labels]
@@ -395,3 +416,18 @@ def deliver(record):
         _append({"ticket": record["ticket"], "status": status, "backend": backend,
                  "ts": time.time(), **extra})
     return ref
+
+
+def record_event(kind, summary, customer, orders=None, ticket_id=None):
+    """Open and deliver a ticket for something Ami did (return, cancellation)
+    or could not do (system failure). Never raises; returns the record."""
+    try:
+        rec = open_ticket(summary, customer=customer, context={"orders": orders or {}},
+                          kind=kind, ticket_id=ticket_id)
+        rec["ref"] = deliver(rec)
+        return rec
+    except Exception as e:                   # a ticket must never break the customer's turn
+        observe.log("escalation", status="open_failed", ticket_kind=kind,
+                    error=f"{type(e).__name__}: {str(e)[:160]}")
+        return None
+

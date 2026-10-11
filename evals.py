@@ -40,6 +40,9 @@ Stage 2 changes, against the Stage 1 file:
 This file grades what the agent DID. golden.py grades what it SAID.
 """
 
+import os
+# Eval runs never create real Jira tickets or send mail, whatever .env says.
+os.environ["ESCALATION_BACKEND"] = "none"
 import argparse
 import contextlib
 import importlib

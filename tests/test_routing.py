@@ -91,7 +91,7 @@ def test_ticket_text_has_issue_orders_routing_and_steps(monkeypatch):
     assert '"text": "Logistics & Fulfilment", "marks": [{"type": "strong"}]' in flat  # department bold
     assert '"text": "Marco Diaz", "marks": [{"type": "strong"}]' in flat             # contact name bold
     assert '"orderedList"' in flat                                                    # numbered next steps
-    assert set(escalations._jira_labels(rec)) == {"delivery_delay", "authenticated", "priority-high"}
+    assert set(escalations._jira_labels(rec)) == {"escalation", "delivery_delay", "authenticated", "priority-high"}
 
 
 def test_order_mentioned_but_not_looked_up_is_flagged():

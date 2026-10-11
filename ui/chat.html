@@ -340,8 +340,7 @@ async function reset() {
     $('activity').innerHTML = '';
     bubble('Ami', d.greeting || GREETING);
     draw({...d, steps: []});
-    // Clear auth cookie by setting it to expire immediately
-    document.cookie = 'auth_token=; Max-Age=0; path=/;';
+    // The server expires the HttpOnly auth cookie in its response.
     document.cookie = 'sid=; Max-Age=0; path=/;';
   } catch (err) {
     console.error('Reset error:', err);
