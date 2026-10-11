@@ -293,7 +293,7 @@ class TestJiraFields:
         called = []
         monkeypatch.setattr(escalations.urllib.request, "urlopen", _fake_urlopen(
             body=b'{"key": "AMI-20"}', capture=called,
-            meta=["Summary", "Priority", "Order number", "Customer Email", "Department"]))
+            meta=["Summary", "Priority", "Order number", "Customer Email", "Department", "Start date"]))
         orders = {"111-2222222-2222222": {"item": "Case", "status": "shipped", "eta": "2026-10-12"}}
         rec = escalations.open_ticket("order is late", customer="demo1@cofy.ai", context={"orders": orders})
         assert escalations.deliver(rec) == "AMI-20"
@@ -303,6 +303,9 @@ class TestJiraFields:
         assert f["customfield_3"] == "demo1@cofy.ai"             # Customer Email
         assert f["customfield_4"] == "Logistics & Fulfilment"    # Department
         assert not any(l.startswith("priority-") for l in f["labels"])
+        import datetime as dt
+        assert f["customfield_5"] == dt.date.fromtimestamp(rec["ts"]).isoformat()   # Start date
+        assert f["duedate"] >= f["customfield_5"]                                   # due on or after start
 
     def test_missing_fields_are_skipped_and_label_kept(self, monkeypatch):
         monkeypatch.setattr(escalations, "config", self._cfg())
