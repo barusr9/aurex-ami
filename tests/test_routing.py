@@ -83,7 +83,7 @@ def test_ticket_text_has_issue_orders_routing_and_steps(monkeypatch):
     for part in ("ISSUE", "ORDERS", "111-2222222-2222222", "MacBook Air M3 Case", "ROUTING",
                  "Logistics & Fulfilment", "SUGGESTED NEXT STEPS", "1. Start from order"):
         assert part in t, part
-    assert escalations._jira_summary(rec) == f"{rec['ticket']} | Delivery delay | High"
+    assert escalations._jira_summary(rec) == rec["ticket"]
     assert escalations._headline(rec).startswith(rec["ticket"] + " [delivery delay] order 111-2222222-2222222")
     adf = escalations._adf(rec)
     flat = json.dumps(adf)

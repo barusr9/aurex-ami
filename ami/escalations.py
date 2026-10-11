@@ -203,9 +203,8 @@ def _headline(record):
 
 
 def _jira_summary(record):
-    """Short Jira title: ticket | category | priority."""
-    r = record.get("routing") or {}
-    return f"{record['ticket']} | {_category_title(record)} | {r.get('priority') or 'Normal'}"
+    """Jira title is just the ticket number; category and priority are labels."""
+    return record["ticket"]
 
 
 def _adf(record):
