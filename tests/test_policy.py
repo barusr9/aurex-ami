@@ -377,3 +377,11 @@ class TestConfirmToolsConstant:
         assert "find_orders" not in policy.CONFIRM_TOOLS
         assert "get_order" not in policy.CONFIRM_TOOLS
         assert "track_package" not in policy.CONFIRM_TOOLS
+
+
+def test_new_style_ticket_numbers_are_verified_whole():
+    from ami.memory import WorkingMemory
+    work = WorkingMemory(scope="raj@example.com")
+    work.actions = ["Escalated to a human, ticket ESC-261011-4827"]
+    out = policy.check_output("Your ticket is ESC-261011-4827; not ESC-261011-9999.", work)
+    assert "ESC-261011-4827" in out and "ESC-261011-9999" not in out

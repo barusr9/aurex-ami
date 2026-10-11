@@ -10,6 +10,7 @@ Tests pin:
 """
 
 import io
+import re
 import json
 from types import SimpleNamespace
 
@@ -45,14 +46,16 @@ class TestUniqueTickets:
         a = escalations.open_ticket("first")["ticket"]
         b = escalations.open_ticket("second")["ticket"]
         c = escalations.open_ticket("third")["ticket"]
-        assert (a, b, c) == ("ESC-10001", "ESC-10002", "ESC-10003")
+        assert len({a, b, c}) == 3
+        assert all(re.fullmatch(r"ESC-\d{6}-\d{4}", t) for t in (a, b, c))
 
     def test_numbering_survives_a_restart(self, monkeypatch):
         monkeypatch.setattr(escalations, "config", _cfg())
         escalations.open_ticket("before restart")
         escalations.open_ticket("before restart")
         # a "restart" is just a fresh read of the file: nothing is cached in memory
-        assert escalations.open_ticket("after")["ticket"] == "ESC-10003"
+        after = escalations.open_ticket("after")["ticket"]
+        assert after not in {r["ticket"] for r in _lines()[:-1]}
 
     def test_id_matches_the_policy_identifier_pattern(self, monkeypatch):
         monkeypatch.setattr(escalations, "config", _cfg())
@@ -63,7 +66,7 @@ class TestUniqueTickets:
         monkeypatch.setattr(escalations, "config", _cfg())
         escalations.open_ticket("order 111 is late", customer="raj@example.com")
         rec = _lines()[-1]
-        assert rec["ticket"] == "ESC-10001"
+        assert rec["ticket"].startswith("ESC-")
         assert rec["status"] == "opened"
         assert rec["customer"] == "raj@example.com"
         assert rec["summary"] == "order 111 is late"
@@ -264,7 +267,7 @@ class TestCustomerFacingTicket:
     def test_no_backend_keeps_esc(self, monkeypatch):
         monkeypatch.setattr(escalations, "config", _cfg())
         r = tools.run("escalate", {"summary": "x"}, scope="raj@example.com")
-        assert r["ticket"] == r["local_ticket"] == "ESC-10001"
+        assert r["ticket"] == r["local_ticket"] and r["ticket"].startswith("ESC-")
 
 
 class TestPolicyKnowsJiraKeys:

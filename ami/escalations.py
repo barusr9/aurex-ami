@@ -62,6 +62,20 @@ def _records():
         return
 
 
+def mint_id(prefix=PREFIX):
+    """A ticket number unique across machines: prefix + local date + 4 random
+    digits, e.g. ESC-261011-4827. Counting per instance (the old scheme) gave
+    the laptop and each Vercel instance their own ESC-10001."""
+    import datetime as _dt
+    import secrets
+    taken = {str(r.get("ticket")) for r in _records()}
+    day = _dt.date.today().strftime("%y%m%d")
+    while True:
+        tid = f"{prefix}{day}-{secrets.randbelow(10000):04d}"
+        if tid not in taken:
+            return tid
+
+
 def _last_number(prefix=PREFIX, first=FIRST_TICKET):
     last = first - 1
     for r in _records():
@@ -125,7 +139,7 @@ def open_ticket(summary, customer=None, context=None, kind="escalation", ticket_
     # Order ids the agent wrote in its summary but never looked up: shown, flagged
     mentioned = [o for o in dict.fromkeys(_ORDER_ID.findall(summary or "")) if o not in orders]
     with _lock:                              # mint + append are one step
-        ticket = ticket_id or f"{spec['prefix']}{_last_number(spec['prefix'], spec['first']) + 1}"
+        ticket = ticket_id or mint_id(spec["prefix"])
         ev = observe.log("escalation", ticket=ticket, status="opened", ticket_kind=kind,
                          backend=(config.ESCALATION_BACKEND or "none"),
                          customer=customer, summary=(summary or "")[:300],

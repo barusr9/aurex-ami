@@ -36,7 +36,8 @@ _INJECTION = re.compile(
 def _ident_pattern():
     from ami.config import config            # local import keeps policy import-light
     jira = re.escape(config.JIRA_PROJECT) + r"-\d+|" if getattr(config, "JIRA_PROJECT", "") else ""
-    return re.compile(r"\b(" + jira + r"ESC-\d+|RMA-\d+|\d{3}-\d{7}-\d{7})\b")
+    # Ticket numbers: ESC/RMA/CXL-<digits>, optionally -<digits> (ESC-261011-4827).
+    return re.compile(r"\b(" + jira + r"(?:ESC|RMA|CXL)-\d+(?:-\d+)?|\d{3}-\d{7}-\d{7})\b")
 
 
 _IDENT = _ident_pattern()
