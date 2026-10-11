@@ -37,6 +37,7 @@ def test_matrix_is_not_customer_searchable():
 @pytest.mark.parametrize("summary,category", [
     ("order is late and customer is upset", "delivery_delay"),
     ("package never arrived", "delivery_delay"),
+    ("the delivered AirPods order was not received", "delivery_delay"),
     ("item arrived broken", "damaged_or_wrong_item"),
     ("wants a refund", "returns_refunds"),
     ("wants to cancel the order", "cancellation"),
@@ -108,3 +109,27 @@ def test_due_date_from_sla():
     assert escalations._due_date("1 business day", fri) == "2026-10-12"     # Monday
     sat = dt.date(2026, 10, 10)
     assert escalations._due_date("2 business hours", sat) == "2026-10-12"   # weekend -> Monday
+
+
+ALL = {"111-1111111-1111111": {"item": "Apple AirPods Pro", "status": "delivered"},
+       "111-2222222-2222222": {"item": "MacBook Air M3 Case", "status": "shipped"},
+       "111-3333333-3333333": {"item": "USB-C Hub 7-in-1", "status": "preparing"}}
+
+
+def test_ticket_keeps_only_the_order_named_by_item():
+    rec = escalations.open_ticket("Customer reports the delivered AirPods order was not received",
+                                  customer="demo1@cofy.ai", context={"orders": ALL})
+    assert list(rec["orders"]) == ["111-1111111-1111111"]
+    assert rec["routing"]["category"] == "delivery_delay"
+
+
+def test_ticket_keeps_only_the_order_named_by_id():
+    rec = escalations.open_ticket("problem with 111-3333333-3333333", customer="demo1@cofy.ai",
+                                  context={"orders": ALL})
+    assert list(rec["orders"]) == ["111-3333333-3333333"]
+
+
+def test_ticket_with_no_order_named_lists_none():
+    rec = escalations.open_ticket("customer is unhappy with service", customer="demo1@cofy.ai",
+                                  context={"orders": ALL})
+    assert rec["orders"] == {}

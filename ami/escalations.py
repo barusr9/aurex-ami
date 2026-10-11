@@ -85,6 +85,27 @@ KINDS = {
 _ORDER_ID = re.compile(r"\b\d{3}-\d{7}-\d{7}\b")
 
 
+_STOP = {"the", "and", "with", "for", "pro", "case", "of", "a", "in", "1", "7"}
+
+
+def relevant_orders(summary, orders):
+    """Only the orders this ticket is about. A signed-in customer's whole order
+    list is in working memory, but a ticket about the AirPods should show the
+    AirPods. Keep orders whose id is in the summary, else whose item is named
+    (any distinctive word, e.g. 'airpods', 'macbook'); keep a single known
+    order as is; otherwise keep none rather than all."""
+    if len(orders) <= 1:
+        return orders
+    text = (summary or "").lower()
+    by_id = {oid: o for oid, o in orders.items() if oid in text}
+    if by_id:
+        return by_id
+    def named(o):
+        words = re.findall(r"[a-z0-9][a-z0-9-]{2,}", (o.get("item") or "").lower())
+        return any(w not in _STOP and re.search(r"\b" + re.escape(w) + r"\b", text) for w in words)
+    return {oid: o for oid, o in orders.items() if named(o)}
+
+
 def open_ticket(summary, customer=None, context=None, kind="escalation", ticket_id=None):
     """Mint (or take) a ticket id, route it, and record it. Returns the record.
 
@@ -93,7 +114,7 @@ def open_ticket(summary, customer=None, context=None, kind="escalation", ticket_
     from ami import routing                  # local import keeps module load light
     context = context or {}
     spec = KINDS.get(kind, KINDS["escalation"])
-    orders = dict(context.get("orders") or {})
+    orders = relevant_orders(summary, dict(context.get("orders") or {}))
     route = routing.route(summary, orders)
     # Returns and cancellations land with their own team. A return whose reason
     # sounds like damage goes to Returns & Quality instead (the summary picked it).
