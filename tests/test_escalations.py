@@ -94,15 +94,15 @@ class TestEscalateTool:
 
     def test_tool_result_keeps_the_fields_the_planner_relies_on(self, monkeypatch):
         monkeypatch.setattr(escalations, "config", _cfg())
-        r = tools.run("escalate", {"summary": "x"})
+        r = tools.run("escalate", {"summary": "x"}, scope="raj@example.com")
         assert set(r) >= {"escalated", "ticket", "message", "summary"}
         assert "ref" not in r                      # no backend -> no external reference
 
-    def test_unauthenticated_escalation_still_gets_a_ticket(self, monkeypatch):
+    def test_unauthenticated_escalation_is_refused_and_creates_nothing(self, monkeypatch):
         monkeypatch.setattr(escalations, "config", _cfg())
         r = tools.run("escalate", {"summary": "cannot log in"})
-        assert r["ticket"] == "ESC-10001"
-        assert _lines()[-1]["customer"] is None
+        assert r.get("login_required") is True and "ticket" not in r
+        assert not escalations.FILE.exists()          # no ticket record at all
 
 
 # --------------------------------------------------------------------------
@@ -242,19 +242,19 @@ class TestCustomerFacingTicket:
         monkeypatch.setattr(escalations, "config", self._jira_cfg())
         monkeypatch.setattr(escalations.urllib.request, "urlopen",
                             _fake_urlopen(raise_=ConnectionError("down")))
-        r = tools.run("escalate", {"summary": "late order"})
+        r = tools.run("escalate", {"summary": "late order"}, scope="raj@example.com")
         assert r["ticket"] == r["local_ticket"] and r["ticket"].startswith("ESC-")
 
     def test_webhook_reference_is_not_mistaken_for_a_ticket(self, monkeypatch):
         monkeypatch.setattr(escalations, "config", _cfg(ESCALATION_BACKEND="webhook",
                                                         ESCALATION_WEBHOOK_URL="https://hook"))
         monkeypatch.setattr(escalations.urllib.request, "urlopen", _fake_urlopen(status=200))
-        r = tools.run("escalate", {"summary": "x"})
+        r = tools.run("escalate", {"summary": "x"}, scope="raj@example.com")
         assert r["ticket"].startswith("ESC-") and r["ref"] == "HTTP 200"
 
     def test_no_backend_keeps_esc(self, monkeypatch):
         monkeypatch.setattr(escalations, "config", _cfg())
-        r = tools.run("escalate", {"summary": "x"})
+        r = tools.run("escalate", {"summary": "x"}, scope="raj@example.com")
         assert r["ticket"] == r["local_ticket"] == "ESC-10001"
 
 

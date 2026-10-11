@@ -264,6 +264,12 @@ def escalate(summary, scope=None):
     the logged-in customer, injected by run(), so the ticket names them.
     """
     from ami import escalations                 # local import: avoids a cycle via observe
+    if not scope:
+        # Governance: no ticket without a signed-in customer. The web gate
+        # normally stops a guest before this; this is the backstop.
+        return {"error": "Hand-off to a human needs the customer to log in first. "
+                         "Ask them to log in with the Log In button, then try again.",
+                "login_required": True}
     record = escalations.open_ticket(summary, customer=scope)
     ref = escalations.deliver(record)
     # The customer is told the ticket a human will actually work: the Jira key

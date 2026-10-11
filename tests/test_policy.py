@@ -107,9 +107,14 @@ class TestGuardedRunEscalateOnce:
     """guarded_run() enforces: one escalation per conversation."""
 
     def test_first_escalate_succeeds(self):
-        work = WorkingMemory()
+        work = WorkingMemory(scope="raj@example.com")
         result = policy.guarded_run("escalate", {"summary": "Help needed"}, work)
         assert "escalated" in result or "error" not in result
+
+    def test_guest_escalate_is_refused(self):
+        work = WorkingMemory()
+        result = policy.guarded_run("escalate", {"summary": "Help needed"}, work)
+        assert result.get("login_required") is True and "escalated" not in result
 
     def test_second_escalate_uses_existing_ticket(self):
         work = WorkingMemory()
