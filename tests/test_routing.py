@@ -9,6 +9,7 @@ Tests pin:
 - the ticket text carries issue, orders, routing and numbered next steps
 """
 
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -82,7 +83,14 @@ def test_ticket_text_has_issue_orders_routing_and_steps(monkeypatch):
     for part in ("ISSUE", "ORDERS", "111-2222222-2222222", "MacBook Air M3 Case", "ROUTING",
                  "Logistics & Fulfilment", "SUGGESTED NEXT STEPS", "1. Start from order"):
         assert part in t, part
-    assert escalations._jira_summary(rec).startswith(rec["ticket"] + " [delivery delay] order 111-2222222-2222222")
+    assert escalations._jira_summary(rec) == f"{rec['ticket']} | Delivery delay | High"
+    assert escalations._headline(rec).startswith(rec["ticket"] + " [delivery delay] order 111-2222222-2222222")
+    adf = escalations._adf(rec)
+    flat = json.dumps(adf)
+    assert adf["content"][0]["content"][0]["marks"] == [{"type": "strong"}]          # headline in bold
+    assert '"text": "Logistics & Fulfilment", "marks": [{"type": "strong"}]' in flat  # department bold
+    assert '"text": "Marco Diaz", "marks": [{"type": "strong"}]' in flat             # contact name bold
+    assert '"orderedList"' in flat                                                    # numbered next steps
     assert set(escalations._jira_labels(rec)) >= {"ami", "delivery_delay", "authenticated", "priority-high"}
 
 
