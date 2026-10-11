@@ -1,0 +1,11 @@
+.git
+.cache
+state
+results
+l4-project
+docs
+tests
+.claude
+*.pptx
+*.pdf
+.env

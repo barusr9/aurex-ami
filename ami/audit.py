@@ -7,6 +7,7 @@ Entries are append-only (never modified or deleted).
 Queryable by: user_id, date range, action type, status.
 """
 
+from ami import STATE_DIR
 import json
 import time
 from datetime import datetime
@@ -16,7 +17,7 @@ from threading import Lock
 from ami.log_rotation import rotate_log_if_needed, cleanup_old_logs
 
 # Audit log location: stage1/state/audit.jsonl
-LOG_DIR = Path(__file__).parent.parent / "state"
+LOG_DIR = STATE_DIR
 LOG_FILE = LOG_DIR / "audit.jsonl"
 
 _write_lock = Lock()

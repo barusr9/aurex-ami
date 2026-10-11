@@ -17,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
-from ami import agent_profile as profile
+from ami import agent_profile as profile, STATE_DIR
 from ami import answer_cache
 from ami import dashboard
 from ami import observe
@@ -45,8 +45,8 @@ SYSTEM = profile.system_prompt() + planner.PLANNING_RULES
 # Session persistence with batching
 LONGTERM = LongTermMemory()
 SESSIONS = {}
-SESSIONS_FILE = ROOT / "state" / "sessions.json"
-FEEDBACK_FILE = ROOT / "state" / "feedback.jsonl"
+SESSIONS_FILE = STATE_DIR / "sessions.json"
+FEEDBACK_FILE = STATE_DIR / "feedback.jsonl"
 
 SECRET_KEY = config.SECRET_KEY
 SESSION_TIMEOUT_HOURS = config.SESSION_TIMEOUT_HOURS
@@ -570,4 +570,5 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     print(f"Ami is running at http://localhost:{PORT}   (ctrl-c to stop)", flush=True)
-    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    # HOST=0.0.0.0 for a container; the default keeps the dev server local-only.
+    ThreadingHTTPServer((os.getenv("HOST", "127.0.0.1"), PORT), Handler).serve_forever()

@@ -34,12 +34,12 @@ import urllib.request
 import numpy as np
 import onnxruntime
 from tokenizers import Tokenizer
-from ami import ROOT          # the stage folder
+from ami import ROOT, CACHE_DIR          # the stage folder, and where the model lives
 
 REPO = "TaylorAI/bge-micro-v2"
 FILES = {"model.onnx": "onnx/model_quantized.onnx",   # 17.4 MB, int8
          "tokenizer.json": "tokenizer.json"}          # 700 KB
-HOME = ROOT / ".cache" / "models" / "bge-micro-v2"
+HOME = CACHE_DIR / "models" / "bge-micro-v2"
 MAX_TOKENS = 512          # what this model was trained to accept
 DIMS = 384                # numbers per vector
 

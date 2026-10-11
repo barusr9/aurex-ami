@@ -18,6 +18,14 @@ folder up, next to this package. Generated files go in ../state/ (sessions,
 trace, customer records) and ../.cache/ (the vector index and the model).
 """
 
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent     # the stage folder
+
+# Where generated files go. Local runs keep them next to the code; a host with
+# a read-only or throw-away filesystem (Vercel, most serverless runtimes) sets
+# STATE_DIR and CACHE_DIR to somewhere writable such as /tmp. Nothing else in
+# the package builds a state or cache path by hand.
+STATE_DIR = Path(os.getenv("STATE_DIR") or (ROOT / "state")).resolve()
+CACHE_DIR = Path(os.getenv("CACHE_DIR") or (ROOT / ".cache")).resolve()

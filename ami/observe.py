@@ -22,11 +22,11 @@ import time
 import uuid
 from collections import Counter
 
-from ami import pricing
+from ami import pricing, STATE_DIR
 from ami import ROOT          # the stage folder
 from ami.log_rotation import rotate_log_if_needed, cleanup_old_logs
 
-LOGFILE = ROOT / "state" / "trace.jsonl"
+LOGFILE = STATE_DIR / "trace.jsonl"
 MAX_EVENTS = 500              # what the dashboard keeps in memory
 
 EVENTS = []
