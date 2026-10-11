@@ -21,6 +21,7 @@ HTTP status, a mail id) is stored alongside it.
 
 import base64
 import json
+import re
 import smtplib
 import threading
 import time
@@ -164,6 +165,17 @@ def _jira(record):
                  "Authorization": f"Basic {auth}"})
     with urllib.request.urlopen(req, timeout=_timeout()) as resp:
         return json.loads(resp.read().decode()).get("key") or f"HTTP {resp.status}"
+
+
+_JIRA_KEY = re.compile(r"^[A-Z][A-Z0-9]{1,9}-\d+$")
+
+
+def jira_key(ref):
+    """The issue key if `ref` came back from Jira (e.g. "AMI-2"), else None."""
+    backend = (config.ESCALATION_BACKEND or "none").strip().lower()
+    if backend == "jira" and isinstance(ref, str) and _JIRA_KEY.match(ref):
+        return ref
+    return None
 
 
 _BACKENDS = {"webhook": _webhook, "email": _email, "jira": _jira}

@@ -33,7 +33,13 @@ _ORDER = re.compile(r"^\d{3}-\d{7}-\d{7}$")     # 17 digits too — but not a ca
 _INJECTION = re.compile(
     r"(ignore (all |your )?(previous|prior|above) instructions|developer mode|"
     r"system prompt|you are now|jailbreak|act as (an? )?(admin|root))", re.I)
-_IDENT = re.compile(r"\b(ESC-\d+|RMA-\d+|\d{3}-\d{7}-\d{7})\b")
+def _ident_pattern():
+    from ami.config import config            # local import keeps policy import-light
+    jira = re.escape(config.JIRA_PROJECT) + r"-\d+|" if getattr(config, "JIRA_PROJECT", "") else ""
+    return re.compile(r"\b(" + jira + r"ESC-\d+|RMA-\d+|\d{3}-\d{7}-\d{7})\b")
+
+
+_IDENT = _ident_pattern()
 
 
 # --------------------------------------------------------------------------

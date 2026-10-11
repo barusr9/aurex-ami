@@ -266,9 +266,14 @@ def escalate(summary, scope=None):
     from ami import escalations                 # local import: avoids a cycle via observe
     record = escalations.open_ticket(summary, customer=scope)
     ref = escalations.deliver(record)
+    # The customer is told the ticket a human will actually work: the Jira key
+    # when Jira accepted it (unique across every instance), else the local ESC
+    # number, which still exists if Jira is unreachable.
+    jira_key = escalations.jira_key(ref)
     return {
         "escalated": True,
-        "ticket": record["ticket"],
+        "ticket": jira_key or record["ticket"],
+        "local_ticket": record["ticket"],
         "message": "A human agent will email you within 24 hours.",
         "summary": summary,
         **({"ref": ref} if ref else {}),
