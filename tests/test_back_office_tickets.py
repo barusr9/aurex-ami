@@ -98,3 +98,14 @@ def test_ticket_failure_never_changes_the_tool_result(fresh_store, monkeypatch):
     oid, email = _own_delivered_order()
     r = tools.start_return(oid, "too small", scope=email, confirmed=True)
     assert r["rma"].startswith("RMA-") and "error" not in r
+
+
+def test_rma_numbers_continue_after_a_restart(fresh_store, monkeypatch):
+    """The demo store resets on restart; RMA numbering must not."""
+    oid, email = _own_delivered_order()
+    first = tools.start_return(oid, "too small", scope=email, confirmed=True)["rma"]
+    store.RETURNS.clear()                                   # simulate a restart
+    store.ORDERS[oid]["status"] = "delivered"
+    second = tools.start_return(oid, "too small", scope=email, confirmed=True)["rma"]
+    assert first != second
+    assert int(second.split("-")[1]) == int(first.split("-")[1]) + 1
