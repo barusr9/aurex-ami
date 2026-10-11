@@ -23,6 +23,7 @@ from ami import answer_cache
 from ami import dashboard
 from ami import observe
 from ami import planner
+from ami import tools
 from ami import policy
 from ami import route
 from ami.config import config
@@ -182,6 +183,19 @@ def save_feedback(golden_row_id, original_response, corrected_response, reason, 
         pass
 
 
+def preload_account(work, user_id):
+    """Signed in: load the customer's own orders into working memory once, so
+    'my earphones' or 'my last order' resolve without asking for an order number.
+    Same tool, same scope check as when the agent asks; done in the web layer so
+    the frozen eval suite (which drives the agent directly) is unchanged."""
+    if not user_id or work.customer_email:
+        return
+    result = tools.run("find_orders", {"email": user_id}, scope=user_id)
+    work.record("find_orders", {"email": user_id}, result)
+    observe.log("prefetch", tool="find_orders", ok="error" not in result,
+                orders=len(result.get("orders", [])))
+
+
 def state(session, user_id=None):
     """Everything the page needs to redraw its panels."""
     work = session["work"]
@@ -333,6 +347,7 @@ class Handler(BaseHTTPRequestHandler):
                 except AuthError:
                     pass
                 _, session = self._session(user_id=user_id)
+                preload_account(session["work"], user_id)
                 self._send(json.dumps({**state(session, user_id), "stale": self.stale}))
                 return
 
@@ -520,6 +535,7 @@ class Handler(BaseHTTPRequestHandler):
 
                 observe.context(session=sid, user_id=user_id)
                 turn_id = observe.new_turn()
+                preload_account(work, user_id)
 
                 # Policy: input check — BEFORE the text enters memory, so a
                 # pasted card number is scrubbed before the model ever sees it.
