@@ -198,14 +198,13 @@ def _category_title(record):
 def _headline(record):
     """One sentence: ticket, category, order, and the agent's summary."""
     oid = next(iter(record.get("orders") or {}), None) or next(iter(record.get("orders_mentioned_unverified") or []), None)
-    head = f"{record.get('jira_key') or record['ticket']} [{_category_title(record).lower()}]" + (f" order {oid}" if oid else "")
+    head = f"{record['ticket']} [{_category_title(record).lower()}]" + (f" order {oid}" if oid else "")
     return head + ": " + (record.get("summary") or "customer hand-off")
 
 
 def _jira_summary(record):
-    """Jira title is the Jira key (AMI-13) once known; until the issue exists it
-    is the local ESC number, and _jira() retitles it straight after creation."""
-    return record.get("jira_key") or record["ticket"]
+    """Jira title is the ESC ticket number the customer was given."""
+    return record["ticket"]
 
 
 def _adf(record):
@@ -353,19 +352,7 @@ def _jira(record):
     if "priority" in extra:                      # the real field replaces the label
         payload["fields"]["labels"] = [l for l in payload["fields"]["labels"] if not l.startswith("priority-")]
     status, body = _jira_request("/rest/api/3/issue", auth, data=payload, method="POST")
-    key = body.get("key")
-    if not key:
-        return f"HTTP {status}"
-    # The Jira key only exists now: make it the title and the headline. If this
-    # update fails the issue still exists, so the key is returned regardless.
-    try:
-        shown = dict(record, jira_key=key)
-        _jira_request(f"/rest/api/3/issue/{key}", auth, method="PUT",
-                      data={"fields": {"summary": _jira_summary(shown), "description": _adf(shown)}})
-    except Exception as e:
-        observe.log("escalation", ticket=record["ticket"], status="retitle_failed",
-                    ref=key, error=f"{type(e).__name__}: {str(e)[:120]}")
-    return key
+    return body.get("key") or f"HTTP {status}"
 
 
 _JIRA_KEY = re.compile(r"^[A-Z][A-Z0-9]{1,9}-\d+$")
