@@ -238,13 +238,13 @@ class TestCustomerFacingTicket:
         return _cfg(ESCALATION_BACKEND="jira", JIRA_URL="https://team.atlassian.net",
                     JIRA_EMAIL="me@example.com", JIRA_API_TOKEN="tok", JIRA_PROJECT="AMI")
 
-    def test_jira_key_is_the_ticket_when_delivered(self, monkeypatch):
+    def test_esc_is_the_ticket_and_jira_key_travels_alongside(self, monkeypatch):
         monkeypatch.setattr(escalations, "config", self._jira_cfg())
         monkeypatch.setattr(escalations.urllib.request, "urlopen",
                             _fake_urlopen(body=b'{"key": "AMI-7"}'))
         r = tools.run("escalate", {"summary": "late order"}, scope="raj@example.com")
-        assert r["ticket"] == "AMI-7"
-        assert r["local_ticket"].startswith("ESC-")
+        assert r["ticket"].startswith("ESC-") and r["ticket"] == r["local_ticket"]
+        assert r["jira_key"] == "AMI-7"
         assert _lines()[-1]["ref"] == "AMI-7"
 
     def test_falls_back_to_esc_when_jira_is_down(self, monkeypatch):
@@ -322,17 +322,14 @@ class TestJiraFields:
         assert escalations._jira_extra_fields(rec, {"priority": "priority"})["priority"] == {"name": "Medium"}
 
 
-    def test_title_and_headline_become_the_jira_key(self, monkeypatch):
+    def test_jira_title_and_headline_use_the_esc_number(self, monkeypatch):
         monkeypatch.setattr(escalations, "config", self._cfg())
         called = []
         monkeypatch.setattr(escalations.urllib.request, "urlopen",
                             _fake_urlopen(body=b'{"key": "AMI-30"}', capture=called, meta=["Summary"]))
         rec = escalations.open_ticket("order is late", customer="demo1@cofy.ai")
         assert escalations.deliver(rec) == "AMI-30"
-        post, put = called[0], called[1]
-        assert post["method"] == "POST" and put["method"] == "PUT"
-        assert put["url"].endswith("/rest/api/3/issue/AMI-30")
-        assert put["body"]["fields"]["summary"] == "AMI-30"
-        flat = json.dumps(put["body"]["fields"]["description"])
-        assert "AMI-30 [delivery delay]" in flat
-        assert rec["ticket"] not in flat                      # one number in Jira: the AMI key
+        assert len(called) == 1 and called[0]["method"] == "POST"        # no retitle step
+        f = called[0]["body"]["fields"]
+        assert f["summary"] == rec["ticket"]
+        assert f"{rec['ticket']} [delivery delay]" in json.dumps(f["description"])
