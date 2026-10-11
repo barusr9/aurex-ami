@@ -91,7 +91,7 @@ def test_ticket_text_has_issue_orders_routing_and_steps(monkeypatch):
     assert '"text": "Logistics & Fulfilment", "marks": [{"type": "strong"}]' in flat  # department bold
     assert '"text": "Marco Diaz", "marks": [{"type": "strong"}]' in flat             # contact name bold
     assert '"orderedList"' in flat                                                    # numbered next steps
-    assert set(escalations._jira_labels(rec)) >= {"ami", "delivery_delay", "authenticated", "priority-high"}
+    assert set(escalations._jira_labels(rec)) == {"delivery_delay", "authenticated", "priority-high"}
 
 
 def test_order_mentioned_but_not_looked_up_is_flagged():
@@ -99,3 +99,12 @@ def test_order_mentioned_but_not_looked_up_is_flagged():
     assert rec["orders"] == {}
     assert rec["orders_mentioned_unverified"] == ["112-3333333-3333333"]
     assert "verify before acting" in escalations._text(rec)
+
+
+def test_due_date_from_sla():
+    import datetime as dt
+    fri = dt.date(2026, 10, 9)                       # a Friday
+    assert escalations._due_date("4 business hours", fri) == "2026-10-09"
+    assert escalations._due_date("1 business day", fri) == "2026-10-12"     # Monday
+    sat = dt.date(2026, 10, 10)
+    assert escalations._due_date("2 business hours", sat) == "2026-10-12"   # weekend -> Monday

@@ -255,10 +255,26 @@ def _adf(record):
 
 def _jira_labels(record):
     r = record.get("routing") or {}
-    labels = ["ami", r.get("category") or "general_complaint",
+    labels = [r.get("category") or "general_complaint",
               "authenticated" if record.get("customer") else "guest",
               "priority-" + (r.get("priority") or "normal").lower()]
     return [re.sub(r"[^A-Za-z0-9_-]", "-", x) for x in labels]
+
+
+def _due_date(sla, today=None):
+    """Due date (YYYY-MM-DD) from an SLA like '4 business hours' or '1 business day'.
+    Hours are due the same business day; days count business days forward."""
+    import datetime as _dt
+    d = today or _dt.date.today()
+    def next_business(x):
+        while x.weekday() >= 5:
+            x += _dt.timedelta(days=1)
+        return x
+    d = next_business(d)
+    m = re.search(r"(\d+)\s*business\s*day", sla or "", re.I)
+    for _ in range(int(m.group(1)) if m else 0):
+        d = next_business(d + _dt.timedelta(days=1))
+    return d.isoformat()
 
 
 def _jira(record):
@@ -272,6 +288,7 @@ def _jira(record):
         "issuetype": {"name": config.JIRA_ISSUE_TYPE or "Task"},
         "summary": _jira_summary(record),
         "labels": _jira_labels(record),
+        "duedate": _due_date((record.get("routing") or {}).get("sla")),
         "description": _adf(record),
     }}
     req = urllib.request.Request(
