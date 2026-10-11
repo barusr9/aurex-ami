@@ -1,0 +1,12 @@
+# Keep the function small: ship the app, not the readout.
+results/
+l4-project/
+docs/
+tests/
+state/
+.cache/
+.claude/
+*.pptx
+*.pdf
+readout.html
+READOUT.md

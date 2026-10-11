@@ -27,10 +27,10 @@ import time
 import urllib.request
 from email.message import EmailMessage
 
-from ami import ROOT, observe
+from ami import STATE_DIR, observe
 from ami.config import config
 
-FILE = ROOT / "state" / "escalations.jsonl"
+FILE = STATE_DIR / "escalations.jsonl"
 PREFIX = "ESC-"
 FIRST_TICKET = 10001          # five digits from day one, no leading zeros to lose
 

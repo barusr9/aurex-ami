@@ -39,12 +39,12 @@ import re
 import chromadb
 from chromadb.api.types import EmbeddingFunction
 
-from ami import embedder
+from ami import embedder, CACHE_DIR
 from ami import observe
 from ami import ROOT          # the stage folder
 
 DOCS = ROOT / "knowledge"                  # the documents, one folder per kind
-STORE = ROOT / ".cache" / "chroma"         # the database, on disk
+STORE = CACHE_DIR / "chroma"         # the database, on disk
 CATEGORIES = ("policies", "rules", "tone", "regulations")
 
 

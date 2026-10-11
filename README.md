@@ -132,3 +132,34 @@ tests/            unit tests
 - `state/` and `results/` are generated at runtime and start empty.
 - First run downloads a local embedding model into `.cache/`, so it may take a
   little longer; subsequent runs are fast.
+
+## Deploy
+
+Generated files (sessions, trace, tickets, the vector index and the embedding
+model) go under `STATE_DIR` and `CACHE_DIR`, defaulting to `state/` and
+`.cache/` next to the code. Set them when the host's filesystem is read-only.
+
+**Docker (recommended: a long-lived process with a disk)**
+
+```bash
+docker build -t ami .
+docker run -p 8000:8000 --env-file .env \
+  -v ami-state:/app/state -v ami-cache:/app/.cache ami
+```
+
+**Vercel (works, with limits)**
+
+The repo deploys as-is: `api/index.py` serves the same request handler as
+`web.py`, and `vercel.json` routes every path to it with a 60 s limit. In the
+Vercel project settings add the environment variables from `.env.example`
+(`OPENAI_API_KEY`, `OPENAI_BASE_URL`, `AUTH_SECRET_KEY`, and an escalation
+backend if you want hand-offs to reach a human). Know the limits before
+relying on it:
+
+- the filesystem is `/tmp` and per instance: sessions, trace, feedback and
+  escalation records do not survive a cold start and are not shared between
+  instances; use the webhook / email / Jira backend for tickets
+- the first request on a cold instance downloads the 17 MB embedding model
+  and rebuilds the knowledge index (10-20 s)
+- a turn may run up to the 60 s LLM timeout, which is also the function limit
+
