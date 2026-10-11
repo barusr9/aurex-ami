@@ -70,6 +70,25 @@ class Config:
     ALERT_COST_PER_TURN_USD: float = float(os.getenv("ALERT_COST_PER_TURN_USD", "0.02"))
     ALERT_P95_MS: int = int(os.getenv("ALERT_P95_MS", "12000"))
 
+    # Escalation tickets (hand-off to a human). The ticket id is always minted
+    # locally and recorded in state/escalations.jsonl; the backend only
+    # delivers it. none | webhook | email | jira. Credentials stay in .env.
+    ESCALATION_BACKEND: str = os.getenv("ESCALATION_BACKEND", "none")
+    ESCALATION_TIMEOUT_SECONDS: int = int(os.getenv("ESCALATION_TIMEOUT_SECONDS", "5"))
+    ESCALATION_WEBHOOK_URL: str = os.getenv("ESCALATION_WEBHOOK_URL", "")
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER: str = os.getenv("SMTP_USER", "")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+    ESCALATION_FROM: str = os.getenv("ESCALATION_FROM", "")
+    ESCALATION_TO: str = os.getenv("ESCALATION_TO", "")
+    ESCALATION_EMAIL_CUSTOMER: bool = os.getenv("ESCALATION_EMAIL_CUSTOMER", "0") in ("1", "true", "True")
+    JIRA_URL: str = os.getenv("JIRA_URL", "")
+    JIRA_EMAIL: str = os.getenv("JIRA_EMAIL", "")
+    JIRA_API_TOKEN: str = os.getenv("JIRA_API_TOKEN", "")
+    JIRA_PROJECT: str = os.getenv("JIRA_PROJECT", "")
+    JIRA_ISSUE_TYPE: str = os.getenv("JIRA_ISSUE_TYPE", "Task")
+
     # Memory
     MAX_CONVERSATION_TURNS: int = int(os.getenv("MAX_CONVERSATION_TURNS", "40"))
     LONGTERM_MEMORY_CACHE_SIZE: int = int(os.getenv("LONGTERM_MEMORY_CACHE_SIZE", "5000"))

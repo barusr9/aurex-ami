@@ -256,13 +256,22 @@ def search_knowledge(question):
                          for h in hits]}
 
 
-def escalate(summary):
-    """Hand off to a human. The honest answer when no other tool fits."""
+def escalate(summary, scope=None):
+    """Hand off to a human. The honest answer when no other tool fits.
+
+    Each call opens a unique ticket (recorded in state/escalations.jsonl) and
+    hands it to the configured backend; see ami/escalations.py. `scope` is
+    the logged-in customer, injected by run(), so the ticket names them.
+    """
+    from ami import escalations                 # local import: avoids a cycle via observe
+    record = escalations.open_ticket(summary, customer=scope)
+    ref = escalations.deliver(record)
     return {
         "escalated": True,
-        "ticket": "ESC-4417",
+        "ticket": record["ticket"],
         "message": "A human agent will email you within 24 hours.",
         "summary": summary,
+        **({"ref": ref} if ref else {}),
     }
 
 
@@ -361,9 +370,9 @@ def _dispatch(name, args, scope=None):
         return {"error": f"No such tool: {name}"}
     try:
         # Only inject scope into tools that need it (order access, modifications)
-        # search_knowledge, escalate don't need scope
+        # search_knowledge doesn't need scope; escalate takes it only to name the customer on the ticket
         scope_required_tools = {"find_orders", "get_order", "track_package",
-                                "cancel_order", "start_return"}
+                                "cancel_order", "start_return", "escalate"}
         if scope and name in scope_required_tools:
             args["scope"] = scope
         return fn(**args)
