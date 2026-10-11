@@ -240,6 +240,7 @@
       <div class="card"><div class="k">06 · Safety</div><h3>Card numbers scrubbed before memory</h3><p>The web app stored the raw text before scrubbing it, so card numbers reached the model. Now scrubbed first.</p></div>
     </div>
     <p class="small muted">Plus one fix found in review after merge: the policy guard read the customer scope from model-written tool arguments before the session's. It now uses only the session's. See slide 8.</p>
+    <p class="small muted">Measured after the merge, same code with the flag off and on: <b>order prefetch</b> (master, 10 Oct) cut the 20 behavioural cases from 54 to 50 model calls and the median turn from 4.7 s to 3.9 s at the same pass rate, with no dollar saving because the proxy's cache hit fell from 71% to 45%. <b>Policy prefetch</b> for delivery problems (branch goal3-policy-prefetch, 11 Oct, 3 cases × 2 runs) cut 16 model calls to 9, 0.95¢ to 0.55¢ per turn and the median turn from 4.9 s to 2.1 s, 6/6 passing in both arms. Evidence in l4-project/evidence/.</p>
     <div class="foot">Ami · L4 readout · 6 / 10</div>
   </section>
 
@@ -302,7 +303,7 @@
     <div class="cards">
       <div class="card"><span class="dot"></span><h3>User-trust study, S5</h3><p>Three people do six tasks each and say where they stop trusting Ami. We redesign the top trust-break, ship it, and a fourth person re-tests. Kit and reset script are ready.</p></div>
       <div class="card"><span class="dot"></span><h3>Witnessed final run</h3><p>Both suites on master after the S5 fix, about 10 minutes and 220k tokens, while the pair watches. Those numbers replace the table and the witness signs the readout.</p></div>
-      <div class="card"><span class="dot done"></span><h3>PR #2 reviewed and merged</h3><p>Done 8 Oct. Eleven commits plus a post-merge security fix and a flake fix. 346 tests green on master. Every number here is reproducible from the repo with four commands.</p></div>
+      <div class="card"><span class="dot done"></span><h3>PR #2 reviewed and merged</h3><p>Done 8 Oct. Eleven commits plus a post-merge security fix and a flake fix. 346 tests green on master at the merge, 410 on master as of 10 Oct. Every number here is reproducible from the repo with four commands.</p></div>
     </div>
     <div class="links">
       <span>Code: <a href="https://github.com/barusr9/aurex-ami">github.com/barusr9/aurex-ami</a> · merged PR: <a href="https://github.com/barusr9/aurex-ami/pull/2">pull/2</a></span>
