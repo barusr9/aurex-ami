@@ -256,7 +256,7 @@ def search_knowledge(question):
                          for h in hits]}
 
 
-def escalate(summary, scope=None):
+def escalate(summary, scope=None, context=None):
     """Hand off to a human. The honest answer when no other tool fits.
 
     Each call opens a unique ticket (recorded in state/escalations.jsonl) and
@@ -270,7 +270,7 @@ def escalate(summary, scope=None):
         return {"error": "Hand-off to a human needs the customer to log in first. "
                          "Ask them to log in with the Log In button, then try again.",
                 "login_required": True}
-    record = escalations.open_ticket(summary, customer=scope)
+    record = escalations.open_ticket(summary, customer=scope, context=context)
     ref = escalations.deliver(record)
     # The customer is told the ticket a human will actually work: the Jira key
     # when Jira accepted it (unique across every instance), else the local ESC
@@ -282,6 +282,7 @@ def escalate(summary, scope=None):
         "local_ticket": record["ticket"],
         "message": "A human agent will email you within 24 hours.",
         "summary": summary,
+        "routed_to": record["routing"]["department"],
         **({"ref": ref} if ref else {}),
     }
 

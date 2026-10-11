@@ -97,6 +97,19 @@ def guarded_run(name, args, work):
                 "message": "Already escalated in this conversation; refer the "
                            "customer to this existing ticket."}
 
+    # The ticket carries what the agent actually looked up this session, so a
+    # human starts from facts. Built here from working memory; anything the
+    # model put in `context` is dropped (it writes its own tool arguments).
+    args.pop("context", None)
+    if name == "escalate":
+        args["context"] = {
+            "orders": {oid: {k: o.get(k) for k in ("item", "status", "eta", "delivered_on", "price")
+                             if o.get(k) is not None}
+                       for oid, o in work.orders.items()},
+            "refused": list(work.failures)[-3:],
+            "done": list(work.actions)[-3:],
+        }
+
     # Rule: state-changing tools need a confirmation from a LATER turn.
     if name in CONFIRM_TOOLS:
         key = [name, args.get("order_id", "")]

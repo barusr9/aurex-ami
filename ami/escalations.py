@@ -71,17 +71,31 @@ def _last_number():
     return last
 
 
-def open_ticket(summary, customer=None):
-    """Mint a unique ticket and record it. Returns the record (a dict)."""
+_ORDER_ID = re.compile(r"\b\d{3}-\d{7}-\d{7}\b")
+
+
+def open_ticket(summary, customer=None, context=None):
+    """Mint a unique ticket, route it, and record it. Returns the record."""
+    from ami import routing                  # local import keeps module load light
+    context = context or {}
+    orders = dict(context.get("orders") or {})
+    route = routing.route(summary, orders)
+    # Order ids the agent wrote in its summary but never looked up: shown, flagged
+    mentioned = [o for o in dict.fromkeys(_ORDER_ID.findall(summary or "")) if o not in orders]
     with _lock:                              # mint + append are one step
         ticket = f"{PREFIX}{_last_number() + 1}"
         ev = observe.log("escalation", ticket=ticket, status="opened",
                          backend=(config.ESCALATION_BACKEND or "none"),
-                         customer=customer, summary=(summary or "")[:300])
+                         customer=customer, summary=(summary or "")[:300],
+                         category=route["category"], department=route["department"])
         record = {
             "ticket": ticket, "status": "opened", "ts": ev["ts"],
             "session": ev.get("session"), "turn": ev.get("turn"),
             "customer": customer, "summary": summary or "",
+            "orders": orders, "orders_mentioned_unverified": mentioned,
+            "refused": context.get("refused") or [], "done": context.get("done") or [],
+            "routing": {k: route[k] for k in ("category", "department", "contact",
+                                               "priority", "sla", "next_steps")},
         }
         _append(record)
     return record
@@ -108,10 +122,41 @@ def _timeout():
 
 
 def _text(record):
-    return (f"Ticket {record['ticket']}\n"
-            f"Customer: {record.get('customer') or 'not logged in'}\n"
-            f"Session: {record.get('session')}  Turn: {record.get('turn')}\n\n"
-            f"Summary from the agent:\n{record.get('summary') or '(none)'}\n")
+    r = record.get("routing") or {}
+    lines = [f"Ticket {record['ticket']}  |  {r.get('category', 'general_complaint')}  |  priority {r.get('priority', 'Normal')}",
+             "",
+             "ISSUE",
+             record.get("summary") or "(no summary)",
+             "",
+             "CUSTOMER",
+             f"{record.get('customer') or 'not logged in'} (signed in, identity verified)" if record.get("customer")
+             else "not logged in",
+             ""]
+    orders = record.get("orders") or {}
+    lines.append("ORDERS (looked up by the agent this session)")
+    if orders:
+        for oid, o in orders.items():
+            facts = ", ".join(f"{k}: {v}" for k, v in o.items())
+            lines.append(f"- {oid}" + (f"  ({facts})" if facts else ""))
+    else:
+        lines.append("- none looked up")
+    if record.get("orders_mentioned_unverified"):
+        lines.append("Mentioned in the summary but not looked up (verify before acting): "
+                     + ", ".join(record["orders_mentioned_unverified"]))
+    if record.get("refused"):
+        lines += ["", "ALREADY REFUSED BY AMI"] + [f"- {x}" for x in record["refused"]]
+    if record.get("done"):
+        lines += ["", "ALREADY DONE BY AMI"] + [f"- {x}" for x in record["done"]]
+    lines += ["",
+              "ROUTING (internal/escalation-matrix.md)",
+              f"Department: {r.get('department', '')}",
+              f"Contact: {r.get('contact', '')}",
+              f"SLA: {r.get('sla', '')}",
+              "",
+              "SUGGESTED NEXT STEPS"]
+    lines += [f"{i}. {step}" for i, step in enumerate(r.get("next_steps") or [], 1)]
+    lines += ["", f"Trace: session {record.get('session')}  turn {record.get('turn')}"]
+    return "\n".join(lines) + "\n"
 
 
 def _webhook(record):
@@ -145,6 +190,22 @@ def _email(record):
     return f"mail to {', '.join(to)}"
 
 
+def _jira_summary(record):
+    r = record.get("routing") or {}
+    cat = (r.get("category") or "general_complaint").replace("_", " ")
+    oid = next(iter(record.get("orders") or {}), None) or next(iter(record.get("orders_mentioned_unverified") or []), None)
+    head = f"{record['ticket']} [{cat}]" + (f" order {oid}" if oid else "")
+    return (head + ": " + (record.get("summary") or "customer hand-off"))[:250]
+
+
+def _jira_labels(record):
+    r = record.get("routing") or {}
+    labels = ["ami", r.get("category") or "general_complaint",
+              "authenticated" if record.get("customer") else "guest",
+              "priority-" + (r.get("priority") or "normal").lower()]
+    return [re.sub(r"[^A-Za-z0-9_-]", "-", x) for x in labels]
+
+
 def _jira(record):
     missing = [k for k in ("JIRA_URL", "JIRA_EMAIL", "JIRA_API_TOKEN", "JIRA_PROJECT")
                if not getattr(config, k, None)]
@@ -154,9 +215,12 @@ def _jira(record):
     payload = {"fields": {
         "project": {"key": config.JIRA_PROJECT},
         "issuetype": {"name": config.JIRA_ISSUE_TYPE or "Task"},
-        "summary": f"{record['ticket']}: {(record.get('summary') or 'customer hand-off')[:120]}",
+        "summary": _jira_summary(record),
+        "labels": _jira_labels(record),
         "description": {"type": "doc", "version": 1, "content": [
-            {"type": "paragraph", "content": [{"type": "text", "text": _text(record)}]}]},
+            {"type": "paragraph", "content": [{"type": "text", "text": ln}]} if ln else
+            {"type": "paragraph", "content": []}
+            for ln in _text(record).splitlines()]},
     }}
     req = urllib.request.Request(
         config.JIRA_URL.rstrip("/") + "/rest/api/3/issue",
