@@ -123,7 +123,7 @@ def _timeout():
 
 def _text(record):
     r = record.get("routing") or {}
-    lines = [f"Ticket {record['ticket']}  |  {r.get('category', 'general_complaint')}  |  priority {r.get('priority', 'Normal')}",
+    lines = [_jira_summary(record), _headline(record),
              "",
              "ISSUE",
              record.get("summary") or "(no summary)",
@@ -190,12 +190,68 @@ def _email(record):
     return f"mail to {', '.join(to)}"
 
 
-def _jira_summary(record):
+def _category_title(record):
     r = record.get("routing") or {}
-    cat = (r.get("category") or "general_complaint").replace("_", " ")
+    return (r.get("category") or "general_complaint").replace("_", " ").capitalize()
+
+
+def _headline(record):
+    """One sentence: ticket, category, order, and the agent's summary."""
     oid = next(iter(record.get("orders") or {}), None) or next(iter(record.get("orders_mentioned_unverified") or []), None)
-    head = f"{record['ticket']} [{cat}]" + (f" order {oid}" if oid else "")
-    return (head + ": " + (record.get("summary") or "customer hand-off"))[:250]
+    head = f"{record['ticket']} [{_category_title(record).lower()}]" + (f" order {oid}" if oid else "")
+    return head + ": " + (record.get("summary") or "customer hand-off")
+
+
+def _jira_summary(record):
+    """Short Jira title: ticket | category | priority."""
+    r = record.get("routing") or {}
+    return f"{record['ticket']} | {_category_title(record)} | {r.get('priority') or 'Normal'}"
+
+
+def _adf(record):
+    """The ticket as Atlassian Document Format: headings, bold names, lists."""
+    r = record.get("routing") or {}
+    t = lambda text, bold=False: ({"type": "text", "text": text, **({"marks": [{"type": "strong"}]} if bold else {})})
+    para = lambda *parts: {"type": "paragraph", "content": [p for p in parts if p.get("text")]}
+    head = lambda text: {"type": "heading", "attrs": {"level": 3}, "content": [t(text)]}
+    items = lambda kind, rows: {"type": kind, "content": [
+        {"type": "listItem", "content": [para(*row) if isinstance(row, tuple) else para(t(row))]} for row in rows]}
+
+    doc = [para(t(_headline(record), bold=True)),
+           head("Issue"), para(t(record.get("summary") or "(no summary)")),
+           head("Customer"),
+           para(t(record["customer"], bold=True), t("  (signed in, identity verified)")) if record.get("customer")
+           else para(t("not logged in"))]
+
+    orders = record.get("orders") or {}
+    doc.append(head("Orders"))
+    if orders:
+        rows = []
+        for oid, o in orders.items():
+            facts = ", ".join(f"{k}: {v}" for k, v in o.items())
+            rows.append((t(oid, bold=True), t(f"  {facts}" if facts else "")))
+        doc.append(items("bulletList", rows))
+    else:
+        doc.append(para(t("None looked up by the agent this session.")))
+    if record.get("orders_mentioned_unverified"):
+        doc.append(para(t("Mentioned but not looked up, verify before acting: ", bold=True),
+                        t(", ".join(record["orders_mentioned_unverified"]))))
+    if record.get("refused"):
+        doc += [head("Already refused by Ami"), items("bulletList", record["refused"])]
+    if record.get("done"):
+        doc += [head("Already done by Ami"), items("bulletList", record["done"])]
+
+    contact = r.get("contact") or ""
+    name, _, email = contact.partition(",")
+    doc += [head("Routing"),
+            para(t("Department: "), t(r.get("department") or "", bold=True)),
+            para(t("Contact: "), t(name.strip(), bold=True), t(f", {email.strip()}" if email else "")),
+            para(t("SLA: "), t(r.get("sla") or "")),
+            head("Suggested next steps"),
+            items("orderedList", r.get("next_steps") or ["Read the conversation and reply within the SLA"]),
+            para(t(f"Trace: session {record.get('session')}, turn {record.get('turn')}. "
+                   "Routing from internal/escalation-matrix.md."))]
+    return {"type": "doc", "version": 1, "content": doc}
 
 
 def _jira_labels(record):
@@ -217,10 +273,7 @@ def _jira(record):
         "issuetype": {"name": config.JIRA_ISSUE_TYPE or "Task"},
         "summary": _jira_summary(record),
         "labels": _jira_labels(record),
-        "description": {"type": "doc", "version": 1, "content": [
-            {"type": "paragraph", "content": [{"type": "text", "text": ln}]} if ln else
-            {"type": "paragraph", "content": []}
-            for ln in _text(record).splitlines()]},
+        "description": _adf(record),
     }}
     req = urllib.request.Request(
         config.JIRA_URL.rstrip("/") + "/rest/api/3/issue",
