@@ -277,6 +277,58 @@ def _due_date(sla, today=None):
     return d.isoformat()
 
 
+_JIRA_FIELDS = {}          # cache: project key -> {lower-case field name: field id}
+_PRIORITY_MAP = {"high": "High", "normal": "Medium", "medium": "Medium", "low": "Low",
+                 "highest": "Highest", "lowest": "Lowest"}
+
+
+def _jira_request(path, auth, data=None, method="GET"):
+    req = urllib.request.Request(
+        config.JIRA_URL.rstrip("/") + path, method=method,
+        data=json.dumps(data).encode() if data is not None else None,
+        headers={"Content-Type": "application/json", "Accept": "application/json",
+                 "Authorization": f"Basic {auth}"})
+    with urllib.request.urlopen(req, timeout=_timeout()) as resp:
+        body = resp.read().decode()
+        return resp.status, (json.loads(body) if body else {})
+
+
+def _jira_field_ids(auth):
+    """Field name -> id for a Task in the project, looked up once per process.
+    Lets a Jira admin add Priority / Department / Order number / Customer email
+    in the UI without anyone copying field ids into config. Never raises."""
+    key = config.JIRA_PROJECT
+    if key in _JIRA_FIELDS:
+        return _JIRA_FIELDS[key]
+    ids = {}
+    try:
+        _, types = _jira_request(f"/rest/api/3/issue/createmeta/{key}/issuetypes", auth)
+        want = (config.JIRA_ISSUE_TYPE or "Task").lower()
+        tid = next(t["id"] for t in types.get("issueTypes", []) if t["name"].lower() == want)
+        _, meta = _jira_request(f"/rest/api/3/issue/createmeta/{key}/issuetypes/{tid}", auth)
+        ids = {f["name"].strip().lower(): f["fieldId"] for f in meta.get("fields", [])}
+    except Exception:
+        ids = {}
+    _JIRA_FIELDS[key] = ids
+    return ids
+
+
+def _jira_extra_fields(record, ids):
+    """Values for the optional fields this project has. Missing ones are skipped."""
+    r = record.get("routing") or {}
+    out = {}
+    if "priority" in ids:
+        out["priority"] = {"name": _PRIORITY_MAP.get((r.get("priority") or "normal").lower(), "Medium")}
+    oid = next(iter(record.get("orders") or {}), None)
+    if oid and "order number" in ids:
+        out[ids["order number"]] = oid
+    if record.get("customer") and "customer email" in ids:
+        out[ids["customer email"]] = record["customer"]
+    if r.get("department") and "department" in ids:
+        out[ids["department"]] = r["department"]
+    return out
+
+
 def _jira(record):
     missing = [k for k in ("JIRA_URL", "JIRA_EMAIL", "JIRA_API_TOKEN", "JIRA_PROJECT")
                if not getattr(config, k, None)]
@@ -291,13 +343,13 @@ def _jira(record):
         "duedate": _due_date((record.get("routing") or {}).get("sla")),
         "description": _adf(record),
     }}
-    req = urllib.request.Request(
-        config.JIRA_URL.rstrip("/") + "/rest/api/3/issue",
-        data=json.dumps(payload).encode(), method="POST",
-        headers={"Content-Type": "application/json", "Accept": "application/json",
-                 "Authorization": f"Basic {auth}"})
-    with urllib.request.urlopen(req, timeout=_timeout()) as resp:
-        return json.loads(resp.read().decode()).get("key") or f"HTTP {resp.status}"
+    ids = _jira_field_ids(auth)
+    extra = _jira_extra_fields(record, ids)
+    payload["fields"].update(extra)
+    if "priority" in extra:                      # the real field replaces the label
+        payload["fields"]["labels"] = [l for l in payload["fields"]["labels"] if not l.startswith("priority-")]
+    status, body = _jira_request("/rest/api/3/issue", auth, data=payload, method="POST")
+    return body.get("key") or f"HTTP {status}"
 
 
 _JIRA_KEY = re.compile(r"^[A-Z][A-Z0-9]{1,9}-\d+$")
