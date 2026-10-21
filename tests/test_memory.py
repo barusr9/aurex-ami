@@ -274,9 +274,10 @@ class TestWorkingMemoryRecords:
 class TestWorkingMemoryBrief:
     """WorkingMemory.brief() produces a short note for the model."""
 
-    def test_brief_is_none_when_empty(self):
+    def test_empty_guest_brief_still_says_not_authenticated(self):
         w = WorkingMemory()
-        assert w.brief() is None
+        brief = w.brief()
+        assert "NOT AUTHENTICATED" in brief and "log in" in brief
 
     def test_brief_includes_customer_email(self):
         w = WorkingMemory()

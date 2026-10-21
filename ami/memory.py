@@ -152,17 +152,17 @@ class WorkingMemory:
 
     def brief(self):
         """Working memory as a short note the model reads before every step."""
-        if not any([self.customer_email, self.orders, self.actions,
-                    self.failures, self.escalation, self.scope]):
-            return None
-
+        # A guest always gets the note, even on an empty first turn: it is
+        # what tells the model to ask for a login rather than an order number.
         lines = ["WHAT YOU ALREADY KNOW (do not look these up again):"]
         if self.scope:
             lines.append(f"- User AUTHENTICATED as: {self.scope}")
             lines.append(f"  (This user can access account-specific data)")
         else:
             lines.append(f"- User NOT AUTHENTICATED")
-            lines.append(f"  (Cannot access account-specific data. Ask them to log in.)")
+            lines.append(f"  (Cannot access account-specific data. If they ask about their own "
+                         f"orders, purchases or account, ask them to log in; do not ask for an "
+                         f"order number. General policy questions need no login.)")
         if self.customer_email:
             lines.append(f"- Customer email: {self.customer_email}")
         for oid, o in self.orders.items():
