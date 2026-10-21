@@ -45,7 +45,7 @@ def find_orders(email=None, scope=None):
     # CRITICAL: If no scope, user is NOT authenticated
     # They cannot look up ANY orders, even with email
     if not scope:
-        return {"error": "Authentication required. Please log in to view your orders."}
+        return {"error": "Authentication required. Please log in to view your orders.", "login_required": True}
 
     # With authentication, use ONLY the scope, NEVER accept caller's email param
     # This prevents a user from looking up another user's orders
@@ -69,7 +69,7 @@ def get_order(order_id, scope=None):
     """
     # CRITICAL: Authentication required to view order details
     if not scope:
-        return {"error": "Authentication required. Please log in to view order details."}
+        return {"error": "Authentication required. Please log in to view order details.", "login_required": True}
 
     order = store.ORDERS.get(order_id.strip())
     if not order:
@@ -99,7 +99,7 @@ def track_package(order_id, scope=None):
     """
     # CRITICAL: Authentication required for tracking
     if not scope:
-        return {"error": "Authentication required. Please log in to view tracking information."}
+        return {"error": "Authentication required. Please log in to view tracking information.", "login_required": True}
 
     order = store.ORDERS.get(order_id.strip())
     if not order:
@@ -166,7 +166,7 @@ def cancel_order(order_id, scope=None, confirmed=False):
     """
     # CRITICAL: Authentication required for order modifications
     if not scope:
-        return {"error": "Authentication required. Please log in to cancel an order."}
+        return {"error": "Authentication required. Please log in to cancel an order.", "login_required": True}
 
     order = store.ORDERS.get(order_id.strip())
     if not order:
@@ -217,7 +217,7 @@ def start_return(order_id, reason, scope=None, confirmed=False):
     """
     # CRITICAL: Authentication required for order modifications
     if not scope:
-        return {"error": "Authentication required. Please log in to start a return."}
+        return {"error": "Authentication required. Please log in to start a return.", "login_required": True}
 
     order = store.ORDERS.get(order_id.strip())
     if not order:

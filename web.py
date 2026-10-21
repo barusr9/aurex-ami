@@ -34,7 +34,7 @@ from ami.auth import authenticate_request, AuthError
 from ami.rate_limit import check_and_consume
 from ami.audit import log_action
 from ami.scope import derive_scope, ScopeError
-from ami.query_classifier import (classify_query, requires_authentication, get_login_prompt,
+from ami.query_classifier import (classify_query, needs_login_upfront, get_login_prompt,
                                   is_handoff_request, get_handoff_login_prompt)
 from ami.users import verify_credentials
 from ami.auth import generate_token
@@ -496,33 +496,28 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(json.dumps({
                         "reply": get_handoff_login_prompt(),
                         "requires_login": True,
+                        "gated": True,            # answered by the gate; the agent did not run
                         "steps": [],
                         **state(session, user_id)
                     }))
                     return
 
-                # Classify query
+                # Broad PUBLIC/PRIVATE label: drives model routing, the shared
+                # answer cache and the audit log. It is NOT the guest gate.
                 query_type = classify_query(text)
 
-                # Check auth requirement
-                if requires_authentication(query_type) and not user_id:
+                # Guest gate: stop up front only on an unmistakable account
+                # reference (an order number, "my order", "my account", ...).
+                # General questions go to the agent; if it then reaches for an
+                # account tool, the tool refuses with login_required and the
+                # Log In button is shown below.
+                if needs_login_upfront(text) and not user_id:
                     log_action(None, "chat", status="login_required", http_status=403,
-                              query_type=query_type, details={"ip": self.client_address[0], "message_preview": text[:100]})
+                              query_type="PRIVATE", details={"ip": self.client_address[0], "message_preview": text[:100]})
                     self._send(json.dumps({
                         "reply": get_login_prompt(),
                         "requires_login": True,
-                        "steps": [],
-                        **state(session, user_id)
-                    }))
-                    return
-
-                # Session pollution check
-                if query_type == "PRIVATE" and not user_id:
-                    log_action(None, "chat", status="security_violation", http_status=403,
-                              query_type=query_type, details={"ip": self.client_address[0], "violation": "session_pollution"})
-                    self._send(json.dumps({
-                        "reply": get_login_prompt(),
-                        "requires_login": True,
+                        "gated": True,            # answered by the gate; the agent did not run
                         "steps": [],
                         **state(session, user_id)
                     }))

@@ -282,7 +282,9 @@ function draw(d) {
   box.className = '';
   if (!d.steps || !d.steps.length) {
     box.className = 'empty';
-    box.textContent = 'No tools called this turn — answered from memory.';
+    box.textContent = d.gated
+      ? 'Login required — the agent did not run; this needs the customer\'s account.'
+      : 'No tools called this turn — answered from memory.';
     return;
   }
   box.innerHTML = '';

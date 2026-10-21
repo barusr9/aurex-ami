@@ -106,6 +106,28 @@ def classify_query(message: str) -> str:
     return "PUBLIC"
 
 
+# The guest front-door gate (web.py) is NARROWER than classify_query. It only
+# fires on unmistakable account references, so "when can I return a product?"
+# reaches the agent and is answered from the policies. Anything subtler is
+# caught where the data is: every account tool refuses without a logged-in
+# scope and returns login_required (tools.py), which shows the Log In button.
+# classify_query stays broad on purpose: routing and the shared answer cache
+# use it, and there a false PRIVATE only costs a stronger model or a cache miss.
+_ORDER_ID = re.compile(r"\b\d{3}-\d{7}-\d{7}\b")
+_MY_ACCOUNT_THING = re.compile(
+    r"\bmy (orders?|account|purchases?|packages?|deliver(?:y|ies)|shipments?|"
+    r"tracking|refunds?|returns?|email|address|profile|payments?|cards?|"
+    r"subscriptions?|order history)\b")
+
+
+def needs_login_upfront(message: str) -> bool:
+    """True when a guest's message plainly needs their account: an order
+    number, or "my order" / "my account" / "my refund" and the like.
+    Whole-word matches only ("details" does not contain the word "eta")."""
+    m = (message or "").lower()
+    return bool(_ORDER_ID.search(m) or _MY_ACCOUNT_THING.search(m))
+
+
 def requires_authentication(query_type: str) -> bool:
     """Check if query type requires authentication.
 
