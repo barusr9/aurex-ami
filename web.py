@@ -13,7 +13,6 @@ import os
 import re
 import uuid
 import threading
-from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
@@ -239,10 +238,24 @@ PAGE = PAGE.replace("__MODEL__", MODEL).replace("__GREETING__", json.dumps(profi
 
 class Handler(BaseHTTPRequestHandler):
 
+    def _cookie(self, name):
+        """One cookie's value from the request, or None.
+
+        Not http.cookies.SimpleCookie: it stops at the first cookie it cannot
+        parse and drops everything after it. On localhost every port shares
+        one cookie jar, so another app's cookie (Google Sign-In's JSON
+        g_state) hid our sid and auth_token: every request became a new,
+        logged-out session.
+        """
+        for part in self.headers.get("Cookie", "").split(";"):
+            key, sep, value = part.strip().partition("=")
+            if sep and key == name:
+                return value
+        return None
+
     def _authenticate(self):
         """Extract and validate user from HTTP-only auth cookie."""
-        cookie = SimpleCookie(self.headers.get("Cookie", ""))
-        token = cookie["auth_token"].value if "auth_token" in cookie else None
+        token = self._cookie("auth_token")
 
         if not token:
             raise AuthError("Missing auth token cookie")
@@ -258,8 +271,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _session(self, user_id=None):
         """Find or mint this browser's session."""
-        cookie = SimpleCookie(self.headers.get("Cookie", ""))
-        sid = cookie["sid"].value if "sid" in cookie else None
+        sid = self._cookie("sid")
         self.stale = bool(sid) and sid not in SESSIONS
 
         # Check if session has expired
