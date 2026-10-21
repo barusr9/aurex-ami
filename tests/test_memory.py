@@ -279,6 +279,15 @@ class TestWorkingMemoryBrief:
         brief = w.brief()
         assert "NOT AUTHENTICATED" in brief and "log in" in brief
 
+    def test_signed_in_brief_says_to_match_named_items_to_orders(self):
+        w = WorkingMemory(scope="a@x.com")
+        w.orders["o1"] = {"item": "Widget", "status": "shipped"}
+        brief = w.brief()
+        assert "match it to these orders" in brief and "not on their account" in brief
+
+    def test_guest_brief_has_no_order_matching_note(self):
+        assert "match it to these orders" not in WorkingMemory().brief()
+
     def test_brief_includes_customer_email(self):
         w = WorkingMemory()
         w.customer_email = "test@example.com"

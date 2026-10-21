@@ -173,6 +173,13 @@ class WorkingMemory:
             if o.get("delivered_on"):
                 bits.append(f"delivered={o['delivered_on']}")
             lines.append("- " + ", ".join(bits))
+        if self.scope and self.orders:
+            # Without this the model saw the list but still asked "please send
+            # the order number" for an item the customer named (or never had).
+            lines.append("  (When the customer names an item, match it to these orders and use "
+                         "that order number; do not ask for one you can see. If nothing matches, "
+                         "call find_orders; if still nothing, say that item is not on their "
+                         "account and name the items that are.)")
         if self.actions:
             lines.append("ALREADY DONE (never do these twice):")
             lines += [f"- {a}" for a in self.actions]
