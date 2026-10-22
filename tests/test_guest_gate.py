@@ -21,6 +21,8 @@ GENERAL = [
     "give me details about the warranty",            # "details" contains "eta"
     "is creating an account free?",
     "how do refunds work",
+    "what is my return policy",                      # "my return" + policy is still general
+    "what are my refund options?",
 ]
 
 ACCOUNT = [
@@ -31,6 +33,8 @@ ACCOUNT = [
     "when will my refund arrive",
     "track my package",
     "I want to start my return",
+    "where is my return?",
+    "my refund policy says 30 days but my refund is late",   # still names their refund
     "change my address",
 ]
 

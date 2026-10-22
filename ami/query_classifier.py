@@ -117,7 +117,9 @@ _ORDER_ID = re.compile(r"\b\d{3}-\d{7}-\d{7}\b")
 _MY_ACCOUNT_THING = re.compile(
     r"\bmy (orders?|account|purchases?|packages?|deliver(?:y|ies)|shipments?|"
     r"tracking|refunds?|returns?|email|address|profile|payments?|cards?|"
-    r"subscriptions?|order history)\b")
+    r"subscriptions?|order history)\b"
+    # ...but "my return policy" / "my refund window" asks about the rules, not the account
+    r"(?!\s+(?:polic(?:y|ies)|windows?|periods?|rules|terms|options|process)\b)")
 
 
 def needs_login_upfront(message: str) -> bool:

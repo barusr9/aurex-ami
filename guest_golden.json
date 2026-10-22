@@ -23,6 +23,8 @@
   {"q": "what payment methods do you accept?", "expect": "answer"},
   {"q": "hi", "expect": "answer"},
   {"q": "what can you help me with?", "expect": "answer"},
+  {"q": "what is my return policy", "expect": "answer"},
+  {"q": "what's my refund window?", "expect": "answer"},
 
   {"q": "where is my order?", "expect": "login", "upfront": true},
   {"q": "what's the status of 112-3333333-3333333", "expect": "login", "upfront": true},
